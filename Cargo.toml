@@ -1,0 +1,13 @@
+[package]
+name = "jfs"
+version = "0.1.0"
+authors = ["Markus Kohlhase <mail@markus-kohlhase.de>"]
+license = "MIT"
+homepage = "https://github.com/flosse/rust-json-file-store"
+repository = "https://github.com/flosse/rust-json-file-store"
+description = "A JSON file store"
+keywords = ["json", "file", "store", "db", "database"]
+
+[dependencies]
+uuid = { version = "0.2", features = ["v4"] }
+rustc-serialize = "0.3"
