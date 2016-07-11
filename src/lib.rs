@@ -28,6 +28,23 @@
 //!    db.delete(&id).unwrap();
 //! }
 //! ```
+//!
+//! You can also store all data in one single JSON-File:
+//!
+//! ```
+//! let mut cfg = jfs::Config::default();
+//! cfg.single = true; // false is default
+//! let db = jfs::Store::new_with_cfg("data",cfg);
+//! ```
+//!
+//! If you like to pretty print the file content, set `pretty` to `true`
+//! and choose a number of whitespaces for the indention:
+//!
+//! ```
+//! let mut cfg = jfs::Config::default();
+//! cfg.pretty = true;  // false is default
+//! cfg.indent = 4;     // 2 is default
+//! ```
 
 extern crate uuid;
 extern crate rustc_serialize;
@@ -43,9 +60,9 @@ use std::collections::BTreeMap;
 
 #[derive(Clone,Copy)]
 pub struct Config {
-    pretty: bool,
-    indent: u32,
-    single: bool,
+    pub pretty: bool,
+    pub indent: u32,
+    pub single: bool,
 }
 
 impl Default for Config {

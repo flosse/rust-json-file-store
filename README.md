@@ -31,6 +31,23 @@ pub fn main() {
 }
 ```
 
+You can also store all data in one single JSON-File:
+
+```rust
+let mut cfg = jfs::Config::default();
+cfg.single = true; // false is default
+let db = jfs::Store::new_with_cfg("data",cfg);
+```
+
+If you like to pretty print the file content, set `pretty` to `true`
+and choose a number of whitespaces for the indention:
+
+```rust
+let mut cfg = jfs::Config::default();
+cfg.pretty = true;  // false is default
+cfg.indent = 4;     // 2 is default
+```
+
 ## License
 
 This project is licensed under the MIT License.
