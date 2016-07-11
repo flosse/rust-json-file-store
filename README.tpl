@@ -1,4 +1,4 @@
-[![](http://meritbadge.herokuapp.com/sun)](https://crates.io/crates/jfs)
+[![](http://meritbadge.herokuapp.com/jfs)](https://crates.io/crates/jfs)
 
 {{readme}}
 
