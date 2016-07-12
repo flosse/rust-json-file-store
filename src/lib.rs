@@ -249,9 +249,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::io::{Result, ErrorKind};
     use std::path::Path;
-
-    static TEST_DIR_NAME: &'static str = ".specTests";
-    static TEST_FILE_NAME: &'static str = ".specTests.json";
+    use uuid::Uuid;
 
     #[derive(RustcEncodable,RustcDecodable)]
     struct X {
@@ -263,89 +261,97 @@ mod tests {
         y: u32,
     }
 
-    fn write_to_test_file(content: &str) {
-        let mut file = File::create(&TEST_FILE_NAME).unwrap();
+    fn write_to_test_file(name: &str, content: &str) {
+        let mut file = File::create(&name).unwrap();
         Write::write_all(&mut file, content.as_bytes()).unwrap();
     }
 
-    fn read_from_test_file() -> String {
-        let mut f = File::open(TEST_FILE_NAME).unwrap();
+    fn read_from_test_file(name: &str) -> String {
+        let mut f = File::open(name).unwrap();
         let mut buffer = String::new();
         f.read_to_string(&mut buffer).unwrap();
         buffer
     }
 
-    fn teardown() -> Result<()> {
-        try!(match remove_file(TEST_FILE_NAME) {
-            Err(err) => {
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(()),
-                    _ => Err(err),
-                }
+    fn teardown(dir: &str) -> Result<()> {
+        let p = Path::new(dir);
+        if p.is_file() {
+            match remove_file(p) {
+                Err(err) => {
+                    match err.kind() {
+                        ErrorKind::NotFound => Ok(()),
+                        _ => Err(err),
+                    }
+                },
+                Ok(_) => Ok(())
             }
-            Ok(_) => Ok(()),
-        });
-        match remove_dir_all(TEST_DIR_NAME) {
-            Err(err) => {
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(()),
-                    _ => Err(err),
-                }
+        } else {
+            match remove_dir_all(dir) {
+                Err(err) => {
+                    match err.kind() {
+                        ErrorKind::NotFound => Ok(()),
+                        _ => Err(err),
+                    }
+                },
+                Ok(_) => Ok(())
             }
-            Ok(_) => Ok(()),
         }
     }
 
     #[test]
     fn save() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         #[derive(RustcEncodable)]
         struct MyData {
             x: u32,
         };
         let data = MyData { x: 56 };
         let id = db.save(&data).unwrap();
-        let mut f = File::open(format!("{}/{}.json", TEST_DIR_NAME, id)).unwrap();
+        let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
         let mut buffer = String::new();
         f.read_to_string(&mut buffer).unwrap();
         assert_eq!(buffer, "{\"x\":56}");
-        assert!(teardown().is_ok());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn save_empty_obj() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         #[derive(RustcEncodable)]
         struct Empty {};
         let id = db.save(&Empty {}).unwrap();
-        let mut f = File::open(format!("{}/{}.json", TEST_DIR_NAME, id)).unwrap();
+        let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
         let mut buffer = String::new();
         f.read_to_string(&mut buffer).unwrap();
         assert_eq!(buffer, "{}");
-        assert!(teardown().is_ok());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn save_with_id() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         #[derive(RustcEncodable)]
         struct MyData {
             y: i32,
         };
         let data = MyData { y: -7 };
         db.save_with_id(&data, "foo").unwrap();
-        let mut f = File::open(format!("{}/foo.json", TEST_DIR_NAME)).unwrap();
+        let mut f = File::open(format!("{}/foo.json", dir)).unwrap();
         let mut buffer = String::new();
         f.read_to_string(&mut buffer).unwrap();
         assert_eq!(buffer, "{\"y\":-7}");
-        assert!(teardown().is_ok());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn pretty_print_file_content() {
+        let dir = format!(".specTests/{}",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.pretty = true;
-        let db = Store::new_with_cfg(TEST_DIR_NAME, cfg).unwrap();
+        let db = Store::new_with_cfg(&dir, cfg).unwrap();
 
         #[derive(RustcEncodable)]
         struct SubStruct {
@@ -364,50 +370,52 @@ mod tests {
         };
 
         let id = db.save(&data).unwrap();
-        let mut f = File::open(format!("{}/{}.json", TEST_DIR_NAME, id)).unwrap();
+        let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
         let mut buffer = String::new();
         f.read_to_string(&mut buffer).unwrap();
         let expected = "{\n  \"a\": \"foo\",\n  \"b\": {\n    \"c\": 33\n  }\n}";
         assert_eq!(buffer, expected);
-        assert!(teardown().is_ok());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn get() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         #[derive(RustcDecodable)]
         struct MyData {
             z: f32,
         };
-        let mut file = File::create(format!("{}/foo.json", TEST_DIR_NAME)).unwrap();
+        let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
         Write::write_all(&mut file, "{\"z\":9.9}".as_bytes()).unwrap();
         let obj: MyData = db.get("foo").unwrap();
         assert_eq!(obj.z, 9.9);
-        assert!(teardown().is_ok());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn get_non_existent() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         let res = db.get::<X>("foobarobject");
         assert!(res.is_err());
         assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
-
     }
 
     #[test]
     fn get_all() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         #[derive(RustcEncodable,RustcDecodable)]
         struct X {
             x: u32,
             y: u32,
         };
 
-        let mut file = File::create(format!("{}/foo.json", TEST_DIR_NAME)).unwrap();
+        let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
         Write::write_all(&mut file, "{\"x\":1, \"y\":0}".as_bytes()).unwrap();
 
-        let mut file = File::create(format!("{}/bar.json", TEST_DIR_NAME)).unwrap();
+        let mut file = File::create(format!("{}/bar.json", dir)).unwrap();
         Write::write_all(&mut file, "{\"y\":2}".as_bytes()).unwrap();
 
         let all_x: BTreeMap<String, X> = db.get_all().unwrap();
@@ -415,71 +423,79 @@ mod tests {
         assert_eq!(all_x.get("foo").unwrap().x, 1);
         assert!(all_x.get("bar").is_none());
         assert_eq!(all_y.get("bar").unwrap().y, 2);
-        assert!(teardown().is_ok());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn delete() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         let data = Y { y: 88 };
         let id = db.save(&data).unwrap();
-        let f_name = format!("{}/{}.json", TEST_DIR_NAME, id);
+        let f_name = format!("{}/{}.json", dir, id);
         db.get::<Y>(&id).unwrap();
         assert_eq!(Path::new(&f_name).exists(), true);
         db.delete(&id).unwrap();
         assert_eq!(Path::new(&f_name).exists(), false);
         assert!(db.get::<Y>(&id).is_err());
         assert!(db.delete(&id).is_err());
-        assert!(teardown().is_ok());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn delete_non_existent() {
-        let db = Store::new(TEST_DIR_NAME).unwrap();
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        let db = Store::new(&dir).unwrap();
         let res = db.delete("blabla");
         assert!(res.is_err());
         assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn single_save() {
+        let file_name = format!(".specTests/{}.json",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.single = true;
-        let db = Store::new_with_cfg(TEST_FILE_NAME, cfg).unwrap();
-        assert_eq!(read_from_test_file(), "{}");
+        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
+        assert_eq!(read_from_test_file(&file_name), "{}");
         let x = X { x: 3 };
         let y = Y { y: 4 };
         db.save_with_id(&x, "x").unwrap();
         db.save_with_id(&y, "y").unwrap();
-        assert_eq!(read_from_test_file(), "{\"x\":{\"x\":3},\"y\":{\"y\":4}}");
-        assert!(teardown().is_ok());
+        assert_eq!(read_from_test_file(&file_name),
+                   "{\"x\":{\"x\":3},\"y\":{\"y\":4}}");
+        assert!(teardown(&file_name).is_ok());
     }
 
     #[test]
     fn single_save_without_file_name_ext() {
+        let dir = format!(".specTests/{}",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.single = true;
-        Store::new_with_cfg(TEST_DIR_NAME, cfg).unwrap();
-        assert!(Path::new(&format!("{}.json", TEST_DIR_NAME)).exists());
-        assert!(teardown().is_ok());
+        Store::new_with_cfg(&dir, cfg).unwrap();
+        assert!(Path::new(&format!("{}.json", dir)).exists());
+        assert!(teardown(&dir).is_ok());
     }
 
     #[test]
     fn single_get() {
+        let file_name = format!(".specTests/{}.json",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.single = true;
-        let db = Store::new_with_cfg(TEST_FILE_NAME, cfg).unwrap();
-        write_to_test_file("{\"x\":{\"x\":8},\"y\":{\"y\":9}}");
+        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
+        write_to_test_file(&file_name, "{\"x\":{\"x\":8},\"y\":{\"y\":9}}");
         let y = db.get::<Y>("y").unwrap();
         assert_eq!(y.y, 9);
-        assert!(teardown().is_ok());
+        assert!(teardown(&file_name).is_ok());
     }
 
     #[test]
     fn single_get_non_existent() {
+        let file_name = format!(".specTests/{}.json",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.single = true;
-        let db = Store::new_with_cfg(TEST_FILE_NAME, cfg).unwrap();
+        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
         let res = db.get::<X>("foobarobject");
         assert!(res.is_err());
         assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
@@ -487,35 +503,38 @@ mod tests {
 
     #[test]
     fn single_get_all() {
+        let file_name = format!(".specTests/{}.json",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.single = true;
-        let db = Store::new_with_cfg(TEST_FILE_NAME, cfg).unwrap();
-        write_to_test_file("{\"foo\":{\"x\":8},\"bar\":{\"x\":9}}");
+        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
+        write_to_test_file(&file_name, "{\"foo\":{\"x\":8},\"bar\":{\"x\":9}}");
         let all: BTreeMap<String, X> = db.get_all().unwrap();
         assert_eq!(all.get("foo").unwrap().x, 8);
         assert_eq!(all.get("bar").unwrap().x, 9);
-        assert!(teardown().is_ok());
+        assert!(teardown(&file_name).is_ok());
     }
 
 
     #[test]
     fn single_delete() {
+        let file_name = format!(".specTests/{}.json",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.single = true;
-        let db = Store::new_with_cfg(TEST_FILE_NAME, cfg).unwrap();
-        write_to_test_file("{\"foo\":{\"x\":8},\"bar\":{\"x\":9}}");
+        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
+        write_to_test_file(&file_name, "{\"foo\":{\"x\":8},\"bar\":{\"x\":9}}");
         db.delete("bar").unwrap();
-        assert_eq!(read_from_test_file(), "{\"foo\":{\"x\":8}}");
+        assert_eq!(read_from_test_file(&file_name), "{\"foo\":{\"x\":8}}");
         db.delete("foo").unwrap();
-        assert_eq!(read_from_test_file(), "{}");
-        assert!(teardown().is_ok());
+        assert_eq!(read_from_test_file(&file_name), "{}");
+        assert!(teardown(&file_name).is_ok());
     }
 
     #[test]
     fn single_delete_non_existent() {
+        let file_name = format!(".specTests/{}.json",Uuid::new_v4());
         let mut cfg = Config::default();
         cfg.single = true;
-        let db = Store::new_with_cfg(TEST_FILE_NAME, cfg).unwrap();
+        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
         let res = db.delete("blabla");
         assert!(res.is_err());
         assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
