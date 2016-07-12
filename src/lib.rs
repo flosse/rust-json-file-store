@@ -92,7 +92,7 @@ impl Store {
     fn path_buf_to_id(&self, p: PathBuf) -> Result<String> {
         p.file_stem()
             .and_then(|n| n.to_os_string().into_string().ok())
-            .ok_or(Error::new(ErrorKind::Other, "invalid id"))
+            .ok_or_else(|| Error::new(ErrorKind::Other, "invalid id"))
     }
 
     fn save_object_to_file<T: Encodable>(&self, obj: &T, file_name: &PathBuf) -> Result<()> {
@@ -123,7 +123,7 @@ impl Store {
     }
 
     fn get_object_from_json(json: &Json) -> Result<&json::Object> {
-        json.as_object().ok_or(Error::new(ErrorKind::InvalidData, "invalid file content"))
+        json.as_object().ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid file content"))
     }
 
     pub fn new(name: &str) -> Result<Store> {
