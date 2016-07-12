@@ -11,3 +11,4 @@ keywords = ["json", "file", "store", "db", "database"]
 [dependencies]
 uuid = { version = "0.2", features = ["v4"] }
 rustc-serialize = "0.3"
+fs2 = "0.2"
