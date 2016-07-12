@@ -142,7 +142,11 @@ impl Store {
             let o = json::Object::new();
             try!(s.save_object_to_file(&o, &s.path));
         } else {
-            try!(create_dir_all(&s.path));
+            if let Err(err) = create_dir_all(&s.path) {
+                if err.kind() != ErrorKind::AlreadyExists {
+                    return Err(err);
+                }
+            }
         }
         Ok(s)
     }
@@ -250,6 +254,7 @@ mod tests {
     use std::io::{Result, ErrorKind};
     use std::path::Path;
     use uuid::Uuid;
+    use std::thread;
 
     #[derive(RustcEncodable,RustcDecodable)]
     struct X {
@@ -295,6 +300,17 @@ mod tests {
                 },
                 Ok(_) => Ok(())
             }
+        }
+    }
+
+    #[test]
+    fn new_multi_threaded() {
+        let dir = format!(".specTests/{}",Uuid::new_v4());
+        for _ in 0..20 {
+            let d = dir.clone();
+            thread::spawn(move ||{
+                assert!(Store::new(&d).is_ok());
+            });
         }
     }
 
