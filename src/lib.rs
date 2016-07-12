@@ -191,11 +191,8 @@ impl Store {
             let mut result = BTreeMap::new();
             for x in o.iter() {
                 let (k, v) = x;
-                match T::decode(&mut json::Decoder::new(v.clone())) {
-                    Ok(r) => {
-                        result.insert(k.clone(), r);
-                    }
-                    Err(_) => {}
+                if let Ok(r) = T::decode(&mut json::Decoder::new(v.clone())) {
+                    result.insert(k.clone(), r);
                 }
             }
             Ok(result)
