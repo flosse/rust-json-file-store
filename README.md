@@ -12,6 +12,23 @@ This is a port and drop-in replacement of the Node.js library
 Don't use it if you want to persist a large amount of objects.
 Use a real DB instead.
 
+## Installation
+
+Depending on which serialization framework you like to use,
+you have to enable it by setting the corresponding features
+in `Cargo.toml`.
+
+By default `rustc-serialize` is used. To enable support for serde
+add the following to your configuration:
+
+
+```toml
+[dependencies.jfs]
+version = "0.3"
+features = ["serde", "serde_json"]
+default-features = false
+```
+
 ## Example
 
 ```rust

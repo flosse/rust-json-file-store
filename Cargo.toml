@@ -9,6 +9,12 @@ description = "A JSON file store"
 keywords = ["json", "file", "store", "db", "database"]
 
 [dependencies]
-uuid = { version = "0.2", features = ["v4"] }
-rustc-serialize = "0.3"
 fs2 = "0.2"
+uuid = { version = "0.2", features = ["v4"] }
+rustc-serialize = { version = "0.3", optional = true }
+serde = { version = "0.7", optional = true }
+serde_json = { version = "0.7", optional = true }
+serde_macros = { version = "0.7", optional = true }
+
+[features]
+default = ["rustc-serialize"]

@@ -8,6 +8,23 @@
 //! Don't use it if you want to persist a large amount of objects.
 //! Use a real DB instead.
 //!
+//! # Installation
+//!
+//! Depending on which serialization framework you like to use,
+//! you have to enable it by setting the corresponding features
+//! in `Cargo.toml`.
+//!
+//! By default `rustc-serialize` is used. To enable support for serde
+//! add the following to your configuration:
+//!
+//!
+//! ```toml
+//! [dependencies.jfs]
+//! version = "0.3"
+//! features = ["serde", "serde_json"]
+//! default-features = false
+//! ```
+//!
 //! # Example
 //!
 //! ```
@@ -47,19 +64,40 @@
 //! ```
 
 extern crate uuid;
+#[cfg(feature = "rustc-serialize")]
 extern crate rustc_serialize;
 extern crate fs2;
 
 use std::io::prelude::*;
 use std::io::{Error, ErrorKind, Result};
 use uuid::Uuid;
-use rustc_serialize::{Decodable, Encodable};
-use rustc_serialize::json::{self, Json};
-use std::path::PathBuf;
-use std::fs::{read_dir, rename, create_dir_all, remove_file, metadata};
+
+#[cfg(feature = "rustc-serialize")]
+use rustc_serialize::{Encodable as Serialize, Decodable as Deserialize};
+#[cfg(feature = "rustc-serialize")]
+use rustc_serialize::json::{self, Json as Value, Object};
+
+#[cfg(feature = "serde")]
+extern crate serde;
+#[cfg(feature = "serde_json")]
+extern crate serde_json;
+
+#[cfg(feature = "serde")]
+use serde::{Serialize, Deserialize};
+#[cfg(feature = "serde_json")]
+use serde_json::Value;
+#[cfg(feature = "serde_json")]
+use serde_json::value::Map;
+#[cfg(feature = "serde_json")]
+use serde_json::ser::{Serializer, PrettyFormatter};
+
+use std::path::{Path, PathBuf};
+use std::fs::{read_dir, rename, create_dir_all, remove_file, metadata, OpenOptions};
 use std::collections::BTreeMap;
-use std::fs::OpenOptions;
 use fs2::FileExt;
+
+#[cfg(feature = "serde_json")]
+type Object = Map<String, Value>;
 
 #[derive(Clone,Copy)]
 pub struct Config {
@@ -98,14 +136,47 @@ impl Store {
             .ok_or_else(|| Error::new(ErrorKind::Other, "invalid id"))
     }
 
-    fn save_object_to_file<T: Encodable>(&self, obj: &T, file_name: &PathBuf) -> Result<()> {
-        let json_string = if self.cfg.pretty {
-            json::as_pretty_json(&obj).indent(self.cfg.indent).to_string()
-        } else {
-            try!(json::encode(&obj).map_err(|err| Error::new(ErrorKind::InvalidData, err)))
-        };
+    #[cfg(feature = "serde_json")]
+    fn to_writer_pretty<W: Write, T: Serialize>(&self, writer: &mut W, value: &T) -> Result<()> {
+        let mut indent: Vec<char> = vec![];
+        for _ in 0..self.cfg.indent {
+            indent.push(' ');
+        }
+        let b = indent.into_iter().collect::<String>().into_bytes();
+        let mut s = Serializer::with_formatter(writer, PrettyFormatter::with_indent(&b));
+        try!(value.serialize(&mut s).map_err(|err| Error::new(ErrorKind::InvalidData, err)));
+        Ok(())
+    }
 
-        let tmp_filename = std::path::Path::new(&Uuid::new_v4().to_string()).with_extension("tmp");
+    #[cfg(feature = "serde_json")]
+    fn to_vec_pretty<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
+        let mut writer: Vec<u8> = vec![];
+        try!(self.to_writer_pretty(&mut writer, value));
+        Ok(writer)
+    }
+
+    #[cfg(feature = "rustc-serialize")]
+    fn object_to_string<T: Serialize>(&self, obj: &T) -> Result<String> {
+        if self.cfg.pretty {
+            Ok(json::as_pretty_json(&obj).indent(self.cfg.indent).to_string())
+        } else {
+            json::encode(&obj).map_err(|err| Error::new(ErrorKind::Other, err))
+        }
+    }
+
+    #[cfg(feature = "serde_json")]
+    fn object_to_string<T: Serialize>(&self, obj: &T) -> Result<String> {
+        if self.cfg.pretty {
+            let vec = try!(self.to_vec_pretty(obj));
+            String::from_utf8(vec).map_err(|err| Error::new(ErrorKind::Other, err))
+        } else {
+            serde_json::to_string(obj).map_err(|err| Error::new(ErrorKind::Other, err))
+        }
+    }
+
+    fn save_object_to_file<T: Serialize>(&self, obj: &T, file_name: &PathBuf) -> Result<()> {
+        let json_string = try!(self.object_to_string(obj));
+        let tmp_filename = Path::new(&Uuid::new_v4().to_string()).with_extension("tmp");
         let file =
             try!(OpenOptions::new().write(true).create(true).truncate(false).open(&file_name));
         let mut tmp_file =
@@ -124,16 +195,28 @@ impl Store {
         }
     }
 
-    fn get_json_from_file(file_name: &PathBuf) -> Result<Json> {
+    fn get_string_from_file(file_name: &PathBuf) -> Result<String> {
         let mut f = try!(OpenOptions::new().read(true).write(false).create(false).open(&file_name));
         let mut buffer = String::new();
         try!(f.lock_shared());
         try!(f.read_to_string(&mut buffer));
         try!(f.unlock());
-        json::Json::from_str(&buffer).map_err(|err| Error::new(ErrorKind::Other, err))
+        Ok(buffer)
     }
 
-    fn get_object_from_json(json: &Json) -> Result<&json::Object> {
+    #[cfg(feature = "serde_json")]
+    fn get_json_from_file(file_name: &PathBuf) -> Result<Value> {
+        let s = try!(Store::get_string_from_file(file_name));
+        serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
+    }
+
+    #[cfg(feature = "rustc-serialize")]
+    fn get_json_from_file(file_name: &PathBuf) -> Result<Value> {
+        let s = try!(Store::get_string_from_file(file_name));
+        Value::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
+    }
+
+    fn get_object_from_json(json: &Value) -> Result<&Object> {
         json.as_object().ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid file content"))
     }
 
@@ -151,7 +234,7 @@ impl Store {
         if cfg.single {
             s.path = s.path.with_extension("json");
             if !s.path.exists() {
-                let o = json::Object::new();
+                let o = Object::new();
                 try!(s.save_object_to_file(&o, &s.path));
             }
         } else if let Err(err) = create_dir_all(&s.path) {
@@ -162,22 +245,29 @@ impl Store {
         Ok(s)
     }
 
-    pub fn save<T: Encodable>(&self, obj: &T) -> Result<String> {
+    pub fn save<T: Serialize + Deserialize>(&self, obj: &T) -> Result<String> {
         self.save_with_id(obj, &Uuid::new_v4().to_string())
     }
 
-    pub fn save_with_id<T: Encodable>(&self, obj: &T, id: &str) -> Result<String> {
-        if self.cfg.single {
+    #[cfg(feature = "rustc-serialize")]
+    fn to_json_value<T: Serialize>(obj: &T) -> Result<Value> {
+        // start dirty
+        let s = try!(json::encode(&obj).map_err(|err| Error::new(ErrorKind::InvalidData, err)));
+        Value::from_str(&s).map_err(|err| Error::new(ErrorKind::InvalidData, err))
+        // end dirty
+    }
 
+    #[cfg(feature = "serde_json")]
+    fn to_json_value<T: Serialize>(obj: &T) -> Result<Value> {
+        Ok(serde_json::to_value(&obj))
+    }
+
+    pub fn save_with_id<T: Serialize + Deserialize>(&self, obj: &T, id: &str) -> Result<String> {
+        if self.cfg.single {
             let json = try!(Store::get_json_from_file(&self.path));
             let o = try!(Store::get_object_from_json(&json));
             let mut x = o.clone();
-
-            // start dirty
-            let s = try!(json::encode(&obj).map_err(|err| Error::new(ErrorKind::InvalidData, err)));
-            let j = try!(Json::from_str(&s).map_err(|err| Error::new(ErrorKind::InvalidData, err)));
-            // end dirty
-
+            let j = try!(Self::to_json_value(obj));
             x.insert(id.to_string(), j);
             try!(self.save_object_to_file(&x, &self.path));
 
@@ -187,7 +277,17 @@ impl Store {
         Ok(id.to_owned())
     }
 
-    pub fn get<T: Decodable>(&self, id: &str) -> Result<T> {
+    #[cfg(feature = "rustc-serialize")]
+    fn decode<T: Deserialize>(o: Value) -> Result<T> {
+        T::decode(&mut json::Decoder::new(o)).map_err(|err| Error::new(ErrorKind::Other, err))
+    }
+
+    #[cfg(feature = "serde_json")]
+    fn decode<T: Deserialize>(o: Value) -> Result<T> {
+        serde_json::from_value(o).map_err(|err| Error::new(ErrorKind::Other, err))
+    }
+
+    pub fn get<T: Deserialize>(&self, id: &str) -> Result<T> {
         let json = try!(Store::get_json_from_file(&self.id_to_path(id)));
         let o = if self.cfg.single {
             let x = try!(json.find(id).ok_or(Error::new(ErrorKind::NotFound, "no such object")));
@@ -195,18 +295,17 @@ impl Store {
         } else {
             json
         };
-
-        T::decode(&mut json::Decoder::new(o)).map_err(|err| Error::new(ErrorKind::Other, err))
+        Self::decode(o)
     }
 
-    pub fn get_all<T: Decodable>(&self) -> Result<BTreeMap<String, T>> {
+    pub fn get_all<T: Deserialize>(&self) -> Result<BTreeMap<String, T>> {
         if self.cfg.single {
             let json = try!(Store::get_json_from_file(&self.id_to_path("")));
             let o = try!(Store::get_object_from_json(&json));
             let mut result = BTreeMap::new();
             for x in o.iter() {
                 let (k, v) = x;
-                if let Ok(r) = T::decode(&mut json::Decoder::new(v.clone())) {
+                if let Ok(r) = Self::decode(v.clone()) {
                     result.insert(k.clone(), r);
                 }
             }
@@ -253,397 +352,4 @@ impl Store {
             remove_file(self.id_to_path(id))
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::prelude::*;
-    use std::fs::{remove_dir_all, File, remove_file};
-    use Store;
-    use Config;
-    use std::collections::BTreeMap;
-    use std::io::{Result, ErrorKind};
-    use std::path::Path;
-    use uuid::Uuid;
-    use std::thread;
-
-    #[derive(RustcEncodable,RustcDecodable)]
-    struct X {
-        x: u32,
-    }
-
-    #[derive(RustcEncodable,RustcDecodable)]
-    struct Y {
-        y: u32,
-    }
-
-    fn write_to_test_file(name: &str, content: &str) {
-        let mut file = File::create(&name).unwrap();
-        Write::write_all(&mut file, content.as_bytes()).unwrap();
-    }
-
-    fn read_from_test_file(name: &str) -> String {
-        let mut f = File::open(name).unwrap();
-        let mut buffer = String::new();
-        f.read_to_string(&mut buffer).unwrap();
-        buffer
-    }
-
-    fn teardown(dir: &str) -> Result<()> {
-        let p = Path::new(dir);
-        if p.is_file() {
-            match remove_file(p) {
-                Err(err) => {
-                    match err.kind() {
-                        ErrorKind::NotFound => Ok(()),
-                        _ => Err(err),
-                    }
-                }
-                Ok(_) => Ok(()),
-            }
-        } else {
-            match remove_dir_all(dir) {
-                Err(err) => {
-                    match err.kind() {
-                        ErrorKind::NotFound => Ok(()),
-                        _ => Err(err),
-                    }
-                }
-                Ok(_) => Ok(()),
-            }
-        }
-    }
-
-    #[test]
-    fn new_multi_threaded() {
-        let mut threads: Vec<thread::JoinHandle<()>> = vec![];
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        for _ in 0..20 {
-            let d = dir.clone();
-            threads.push(thread::spawn(move || {
-                assert!(Store::new(&d).is_ok());
-            }));
-        }
-        for c in threads {
-            c.join().unwrap();
-        }
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn save() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        #[derive(RustcEncodable)]
-        struct MyData {
-            x: u32,
-        };
-        let data = MyData { x: 56 };
-        let id = db.save(&data).unwrap();
-        let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
-        let mut buffer = String::new();
-        f.read_to_string(&mut buffer).unwrap();
-        assert_eq!(buffer, "{\"x\":56}");
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn save_and_read_multi_threaded() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        let mut threads: Vec<thread::JoinHandle<()>> = vec![];
-        let x = X { x: 56 };
-        db.save_with_id(&x, "bla").unwrap();
-        for i in 0..20 {
-            let d = dir.clone();
-            let x = X { x: i };
-            threads.push(thread::spawn(move || {
-                let db = Store::new(&d).unwrap();
-                db.save_with_id(&x, "bla").unwrap();
-            }));
-        }
-        for _ in 0..20 {
-            let d = dir.clone();
-            threads.push(thread::spawn(move || {
-                let db = Store::new(&d).unwrap();
-                db.get::<X>("bla").unwrap();
-            }));
-        }
-        for c in threads {
-            c.join().unwrap();
-        }
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn save_empty_obj() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        #[derive(RustcEncodable)]
-        struct Empty {};
-        let id = db.save(&Empty {}).unwrap();
-        let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
-        let mut buffer = String::new();
-        f.read_to_string(&mut buffer).unwrap();
-        assert_eq!(buffer, "{}");
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn save_with_id() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        #[derive(RustcEncodable)]
-        struct MyData {
-            y: i32,
-        };
-        let data = MyData { y: -7 };
-        db.save_with_id(&data, "foo").unwrap();
-        let mut f = File::open(format!("{}/foo.json", dir)).unwrap();
-        let mut buffer = String::new();
-        f.read_to_string(&mut buffer).unwrap();
-        assert_eq!(buffer, "{\"y\":-7}");
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn pretty_print_file_content() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.pretty = true;
-        let db = Store::new_with_cfg(&dir, cfg).unwrap();
-
-        #[derive(RustcEncodable)]
-        struct SubStruct {
-            c: u32,
-        };
-
-        #[derive(RustcEncodable)]
-        struct MyData {
-            a: String,
-            b: SubStruct,
-        };
-
-        let data = MyData {
-            a: "foo".to_string(),
-            b: SubStruct { c: 33 },
-        };
-
-        let id = db.save(&data).unwrap();
-        let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
-        let mut buffer = String::new();
-        f.read_to_string(&mut buffer).unwrap();
-        let expected = "{\n  \"a\": \"foo\",\n  \"b\": {\n    \"c\": 33\n  }\n}";
-        assert_eq!(buffer, expected);
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn get() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        #[derive(RustcDecodable)]
-        struct MyData {
-            z: f32,
-        };
-        let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
-        Write::write_all(&mut file, "{\"z\":9.9}".as_bytes()).unwrap();
-        let obj: MyData = db.get("foo").unwrap();
-        assert_eq!(obj.z, 9.9);
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn get_non_existent() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        let res = db.get::<X>("foobarobject");
-        assert!(res.is_err());
-        assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
-    }
-
-    #[test]
-    fn get_all() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        #[derive(RustcEncodable,RustcDecodable)]
-        struct X {
-            x: u32,
-            y: u32,
-        };
-
-        let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
-        Write::write_all(&mut file, "{\"x\":1, \"y\":0}".as_bytes()).unwrap();
-
-        let mut file = File::create(format!("{}/bar.json", dir)).unwrap();
-        Write::write_all(&mut file, "{\"y\":2}".as_bytes()).unwrap();
-
-        let all_x: BTreeMap<String, X> = db.get_all().unwrap();
-        let all_y: BTreeMap<String, Y> = db.get_all().unwrap();
-        assert_eq!(all_x.get("foo").unwrap().x, 1);
-        assert!(all_x.get("bar").is_none());
-        assert_eq!(all_y.get("bar").unwrap().y, 2);
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn delete() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        let data = Y { y: 88 };
-        let id = db.save(&data).unwrap();
-        let f_name = format!("{}/{}.json", dir, id);
-        db.get::<Y>(&id).unwrap();
-        assert_eq!(Path::new(&f_name).exists(), true);
-        db.delete(&id).unwrap();
-        assert_eq!(Path::new(&f_name).exists(), false);
-        assert!(db.get::<Y>(&id).is_err());
-        assert!(db.delete(&id).is_err());
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn delete_non_existent() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let db = Store::new(&dir).unwrap();
-        let res = db.delete("blabla");
-        assert!(res.is_err());
-        assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn single_new_multi_threaded() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        for _ in 0..20 {
-            let n = file_name.clone();
-            thread::spawn(move || {
-                assert!(Store::new_with_cfg(&n, cfg).is_ok());
-            });
-        }
-    }
-
-    #[test]
-    fn single_save() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
-        assert_eq!(read_from_test_file(&file_name), "{}");
-        let x = X { x: 3 };
-        let y = Y { y: 4 };
-        db.save_with_id(&x, "x").unwrap();
-        db.save_with_id(&y, "y").unwrap();
-        assert_eq!(read_from_test_file(&file_name),
-                   "{\"x\":{\"x\":3},\"y\":{\"y\":4}}");
-        assert!(teardown(&file_name).is_ok());
-    }
-
-    #[test]
-    fn single_save_and_read_multi_threaded() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
-        let x = X { x: 0 };
-        db.save_with_id(&x, "foo").unwrap();
-        let mut threads: Vec<thread::JoinHandle<()>> = vec![];
-        for i in 1..20 {
-            let n = file_name.clone();
-            let c = thread::spawn(move || {
-                let x = X { x: i };
-                let db = Store::new_with_cfg(&n, cfg).unwrap();
-                db.save_with_id(&x, "foo").unwrap();
-            });
-            threads.push(c);
-        }
-        for _ in 1..20 {
-            let n = file_name.clone();
-            let c = thread::spawn(move || {
-                let db = Store::new_with_cfg(&n, cfg).unwrap();
-                db.get::<X>("foo").unwrap();
-            });
-            threads.push(c);
-
-        }
-        for c in threads {
-            c.join().unwrap();
-        }
-        assert!(teardown(&file_name).is_ok());
-    }
-
-    #[test]
-    fn single_save_without_file_name_ext() {
-        let dir = format!(".specTests/{}", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        Store::new_with_cfg(&dir, cfg).unwrap();
-        assert!(Path::new(&format!("{}.json", dir)).exists());
-        assert!(teardown(&dir).is_ok());
-    }
-
-    #[test]
-    fn single_get() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
-        write_to_test_file(&file_name, "{\"x\":{\"x\":8},\"y\":{\"y\":9}}");
-        let y = db.get::<Y>("y").unwrap();
-        assert_eq!(y.y, 9);
-        assert!(teardown(&file_name).is_ok());
-    }
-
-    #[test]
-    fn single_get_non_existent() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
-        let res = db.get::<X>("foobarobject");
-        assert!(res.is_err());
-        assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
-    }
-
-    #[test]
-    fn single_get_all() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
-        write_to_test_file(&file_name, "{\"foo\":{\"x\":8},\"bar\":{\"x\":9}}");
-        let all: BTreeMap<String, X> = db.get_all().unwrap();
-        assert_eq!(all.get("foo").unwrap().x, 8);
-        assert_eq!(all.get("bar").unwrap().x, 9);
-        assert!(teardown(&file_name).is_ok());
-    }
-
-
-    #[test]
-    fn single_delete() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
-        write_to_test_file(&file_name, "{\"foo\":{\"x\":8},\"bar\":{\"x\":9}}");
-        db.delete("bar").unwrap();
-        assert_eq!(read_from_test_file(&file_name), "{\"foo\":{\"x\":8}}");
-        db.delete("foo").unwrap();
-        assert_eq!(read_from_test_file(&file_name), "{}");
-        assert!(teardown(&file_name).is_ok());
-    }
-
-    #[test]
-    fn single_delete_non_existent() {
-        let file_name = format!(".specTests/{}.json", Uuid::new_v4());
-        let mut cfg = Config::default();
-        cfg.single = true;
-        let db = Store::new_with_cfg(&file_name, cfg).unwrap();
-        let res = db.delete("blabla");
-        assert!(res.is_err());
-        assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
-    }
-
 }
