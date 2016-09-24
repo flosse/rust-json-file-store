@@ -25,7 +25,7 @@ add the following to your configuration:
 
 ```toml
 [dependencies.jfs]
-version = "0.3"
+version = "0.2"
 features = ["serde", "serde_json"]
 default-features = false
 ```

@@ -20,7 +20,7 @@
 //!
 //! ```toml
 //! [dependencies.jfs]
-//! version = "0.3"
+//! version = "0.2"
 //! features = ["serde", "serde_json"]
 //! default-features = false
 //! ```
@@ -116,6 +116,7 @@ impl Default for Config {
     }
 }
 
+#[derive(Clone)]
 pub struct Store {
     path: PathBuf,
     cfg: Config,
