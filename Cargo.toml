@@ -5,6 +5,7 @@ authors = ["Markus Kohlhase <mail@markus-kohlhase.de>"]
 license = "MIT"
 homepage = "https://github.com/flosse/rust-json-file-store"
 repository = "https://github.com/flosse/rust-json-file-store"
+documentation = "https://docs.rs/crate/jfs/"
 description = "A JSON file store"
 keywords = ["json", "file", "store", "db", "database"]
 
