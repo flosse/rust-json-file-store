@@ -1,6 +1,6 @@
 [package]
 name = "jfs"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["Markus Kohlhase <mail@markus-kohlhase.de>"]
 license = "MIT"
 homepage = "https://github.com/flosse/rust-json-file-store"
@@ -13,9 +13,9 @@ keywords = ["json", "file", "store", "db", "database"]
 fs2 = "0.2"
 uuid = { version = "0.2", features = ["v4"] }
 rustc-serialize = { version = "0.3", optional = true }
-serde = { version = "0.7", optional = true }
-serde_json = { version = "0.7", optional = true }
-serde_macros = { version = "0.7", optional = true }
+serde = { version = "0.8", optional = true }
+serde_json = { version = "0.8", optional = true }
+serde_macros = { version = "0.8", optional = true }
 
 [features]
 default = ["rustc-serialize"]
