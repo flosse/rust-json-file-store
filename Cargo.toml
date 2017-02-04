@@ -8,6 +8,7 @@ repository = "https://github.com/flosse/rust-json-file-store"
 documentation = "https://docs.rs/crate/jfs/"
 description = "A JSON file store"
 keywords = ["json", "file", "store", "db", "database"]
+categories = ["database"]
 
 [dependencies]
 fs2 = "0.2"
