@@ -70,7 +70,7 @@ fn teardown(dir: &str) -> Result<()> {
 #[test]
 fn new_multi_threaded() {
     let mut threads: Vec<thread::JoinHandle<()>> = vec![];
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     for _ in 0..20 {
         let d = dir.clone();
         threads.push(thread::spawn(move || {
@@ -85,7 +85,7 @@ fn new_multi_threaded() {
 
 #[test]
 fn save() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let data = X { x: 56 };
     let id = db.save(&data).unwrap();
@@ -98,7 +98,7 @@ fn save() {
 
 #[test]
 fn save_and_read_multi_threaded() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let mut threads: Vec<thread::JoinHandle<()>> = vec![];
     let x = X { x: 56 };
@@ -126,7 +126,7 @@ fn save_and_read_multi_threaded() {
 
 #[test]
 fn save_empty_obj() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let id = db.save(&Empty {}).unwrap();
     let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
@@ -138,7 +138,7 @@ fn save_empty_obj() {
 
 #[test]
 fn save_with_id() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let data = Y { y: -7 };
     db.save_with_id(&data, "foo").unwrap();
@@ -151,7 +151,7 @@ fn save_with_id() {
 
 #[test]
 fn pretty_print_file_content() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.pretty = true;
     let db = Store::new_with_cfg(&dir, cfg).unwrap();
@@ -183,7 +183,7 @@ fn pretty_print_file_content() {
 
 #[test]
 fn get() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
     Write::write_all(&mut file, "{\"z\":9.9}".as_bytes()).unwrap();
@@ -194,16 +194,17 @@ fn get() {
 
 #[test]
 fn get_non_existent() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let res = db.get::<X>("foobarobject");
     assert!(res.is_err());
     assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
+    assert!(teardown(&dir).is_ok());
 }
 
 #[test]
 fn get_all() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
 
     #[cfg(feature = "serde_json")]
@@ -235,7 +236,7 @@ fn get_all() {
 
 #[test]
 fn delete() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let data = Y { y: 88 };
     let id = db.save(&data).unwrap();
@@ -251,7 +252,7 @@ fn delete() {
 
 #[test]
 fn delete_non_existent() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let res = db.delete("blabla");
     assert!(res.is_err());
@@ -261,20 +262,26 @@ fn delete_non_existent() {
 
 #[test]
 fn single_new_multi_threaded() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
+    let mut threads: Vec<thread::JoinHandle<()>> = vec![];
     for _ in 0..20 {
         let n = file_name.clone();
-        thread::spawn(move || {
+        let c = thread::spawn(move || {
             assert!(Store::new_with_cfg(&n, cfg).is_ok());
         });
+        threads.push(c);
     }
+    for c in threads {
+        c.join().unwrap();
+    }
+    assert!(teardown(&file_name).is_ok());
 }
 
 #[test]
 fn single_save() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -290,7 +297,7 @@ fn single_save() {
 
 #[test]
 fn single_save_and_read_multi_threaded() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -323,17 +330,17 @@ fn single_save_and_read_multi_threaded() {
 
 #[test]
 fn single_save_without_file_name_ext() {
-    let dir = format!(".specTests/{}", Uuid::new_v4());
+    let dir = format!(".specTests-{}", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     Store::new_with_cfg(&dir, cfg).unwrap();
     assert!(Path::new(&format!("{}.json", dir)).exists());
-    assert!(teardown(&dir).is_ok());
+    assert!(teardown(&format!("{}.json",dir)).is_ok());
 }
 
 #[test]
 fn single_get() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -345,18 +352,19 @@ fn single_get() {
 
 #[test]
 fn single_get_non_existent() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
     let res = db.get::<X>("foobarobject");
     assert!(res.is_err());
     assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
+    assert!(teardown(&file_name).is_ok());
 }
 
 #[test]
 fn single_get_all() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -370,7 +378,7 @@ fn single_get_all() {
 
 #[test]
 fn single_delete() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -384,11 +392,12 @@ fn single_delete() {
 
 #[test]
 fn single_delete_non_existent() {
-    let file_name = format!(".specTests/{}.json", Uuid::new_v4());
+    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
     let res = db.delete("blabla");
     assert!(res.is_err());
     assert_eq!(res.err().unwrap().kind(), ErrorKind::NotFound);
+    assert!(teardown(&file_name).is_ok());
 }
