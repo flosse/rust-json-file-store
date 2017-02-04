@@ -203,7 +203,7 @@ fn get_non_existent() {
 }
 
 #[test]
-fn get_all() {
+fn all() {
     let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
 
@@ -226,8 +226,8 @@ fn get_all() {
     let mut file = File::create(format!("{}/bar.json", dir)).unwrap();
     Write::write_all(&mut file, "{\"y\":2}".as_bytes()).unwrap();
 
-    let all_x: BTreeMap<String, X> = db.get_all().unwrap();
-    let all_y: BTreeMap<String, Y> = db.get_all().unwrap();
+    let all_x: BTreeMap<String, X> = db.all().unwrap();
+    let all_y: BTreeMap<String, Y> = db.all().unwrap();
     assert_eq!(all_x.get("foo").unwrap().x, 1);
     assert!(all_x.get("bar").is_none());
     assert_eq!(all_y.get("bar").unwrap().y, 2);
@@ -363,13 +363,13 @@ fn single_get_non_existent() {
 }
 
 #[test]
-fn single_get_all() {
+fn single_all() {
     let file_name = format!(".specTests-{}.json", Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
     write_to_test_file(&file_name, "{\"foo\":{\"x\":8},\"bar\":{\"x\":9}}");
-    let all: BTreeMap<String, X> = db.get_all().unwrap();
+    let all: BTreeMap<String, X> = db.all().unwrap();
     assert_eq!(all.get("foo").unwrap().x, 8);
     assert_eq!(all.get("bar").unwrap().x, 9);
     assert!(teardown(&file_name).is_ok());

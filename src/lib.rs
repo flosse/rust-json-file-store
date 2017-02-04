@@ -233,7 +233,7 @@ impl Store {
         Self::decode(o)
     }
 
-    pub fn get_all<T: Deserialize>(&self) -> Result<BTreeMap<String, T>> {
+    pub fn all<T: Deserialize>(&self) -> Result<BTreeMap<String, T>> {
         if self.cfg.single {
             let json = Store::get_json_from_file(&self.id_to_path(""))?;
             let o = Store::get_object_from_json(&json)?;
