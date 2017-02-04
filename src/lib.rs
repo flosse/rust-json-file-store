@@ -113,19 +113,19 @@ impl Store {
         }
         let b = indent.into_iter().collect::<String>().into_bytes();
         let mut s = Serializer::with_formatter(writer, PrettyFormatter::with_indent(&b));
-        try!(value.serialize(&mut s).map_err(|err| Error::new(ErrorKind::InvalidData, err)));
+        value.serialize(&mut s).map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
         Ok(())
     }
 
     fn to_vec_pretty<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
         let mut writer: Vec<u8> = vec![];
-        try!(self.to_writer_pretty(&mut writer, value));
+        self.to_writer_pretty(&mut writer, value)?;
         Ok(writer)
     }
 
     fn object_to_string<T: Serialize>(&self, obj: &T) -> Result<String> {
         if self.cfg.pretty {
-            let vec = try!(self.to_vec_pretty(obj));
+            let vec = self.to_vec_pretty(obj)?;
             String::from_utf8(vec).map_err(|err| Error::new(ErrorKind::Other, err))
         } else {
             serde_json::to_string(obj).map_err(|err| Error::new(ErrorKind::Other, err))
@@ -133,37 +133,40 @@ impl Store {
     }
 
     fn save_object_to_file<T: Serialize>(&self, obj: &T, file_name: &PathBuf) -> Result<()> {
-        let json_string = try!(self.object_to_string(obj));
+        let json_string = self.object_to_string(obj)?;
         let tmp_filename = Path::new(&Uuid::new_v4().to_string()).with_extension("tmp");
-        let file =
-            try!(OpenOptions::new().write(true).create(true).truncate(false).open(&file_name));
-        let mut tmp_file =
-            try!(OpenOptions::new().write(true).create(true).truncate(true).open(&tmp_filename));
-
-        try!(file.lock_exclusive());
-        try!(tmp_file.lock_exclusive());
+        let file = OpenOptions::new().write(true)
+            .create(true)
+            .truncate(false)
+            .open(&file_name)?;
+        let mut tmp_file = OpenOptions::new().write(true)
+            .create(true)
+            .truncate(true)
+            .open(&tmp_filename)?;
+        file.lock_exclusive()?;
+        tmp_file.lock_exclusive()?;
 
         match Write::write_all(&mut tmp_file, json_string.as_bytes()) {
             Err(err) => Err(err),
             Ok(_) => {
-                try!(rename(tmp_filename, file_name));
-                try!(tmp_file.unlock());
+                rename(tmp_filename, file_name)?;
+                tmp_file.unlock()?;
                 file.unlock()
             }
         }
     }
 
     fn get_string_from_file(file_name: &PathBuf) -> Result<String> {
-        let mut f = try!(OpenOptions::new().read(true).write(false).create(false).open(&file_name));
+        let mut f = OpenOptions::new().read(true).write(false).create(false).open(&file_name)?;
         let mut buffer = String::new();
-        try!(f.lock_shared());
-        try!(f.read_to_string(&mut buffer));
-        try!(f.unlock());
+        f.lock_shared()?;
+        f.read_to_string(&mut buffer)?;
+        f.unlock()?;
         Ok(buffer)
     }
 
     fn get_json_from_file(file_name: &PathBuf) -> Result<Value> {
-        let s = try!(Store::get_string_from_file(file_name));
+        let s = Store::get_string_from_file(file_name)?;
         serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 
@@ -186,7 +189,7 @@ impl Store {
             s.path = s.path.with_extension("json");
             if !s.path.exists() {
                 let o = Object::new();
-                try!(s.save_object_to_file(&o, &s.path));
+                s.save_object_to_file(&o, &s.path)?;
             }
         } else if let Err(err) = create_dir_all(&s.path) {
             if err.kind() != ErrorKind::AlreadyExists {
@@ -202,15 +205,15 @@ impl Store {
 
     pub fn save_with_id<T: Serialize + Deserialize>(&self, obj: &T, id: &str) -> Result<String> {
         if self.cfg.single {
-            let json = try!(Store::get_json_from_file(&self.path));
-            let o = try!(Store::get_object_from_json(&json));
+            let json = Store::get_json_from_file(&self.path)?;
+            let o = Store::get_object_from_json(&json)?;
             let mut x = o.clone();
-            let j = try!(serde_json::to_value(&obj).map_err(|err| Error::new(ErrorKind::Other, err)));
+            let j = serde_json::to_value(&obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
             x.insert(id.to_string(), j);
-            try!(self.save_object_to_file(&x, &self.path));
+            self.save_object_to_file(&x, &self.path)?;
 
         } else {
-            try!(self.save_object_to_file(obj, &self.id_to_path(id)));
+            self.save_object_to_file(obj, &self.id_to_path(id))?;
         }
         Ok(id.to_owned())
     }
@@ -220,9 +223,9 @@ impl Store {
     }
 
     pub fn get<T: Deserialize>(&self, id: &str) -> Result<T> {
-        let json = try!(Store::get_json_from_file(&self.id_to_path(id)));
+        let json = Store::get_json_from_file(&self.id_to_path(id))?;
         let o = if self.cfg.single {
-            let x = try!(json.get(id).ok_or(Error::new(ErrorKind::NotFound, "no such object")));
+            let x = json.get(id).ok_or(Error::new(ErrorKind::NotFound, "no such object"))?;
             x.clone()
         } else {
             json
@@ -232,8 +235,8 @@ impl Store {
 
     pub fn get_all<T: Deserialize>(&self) -> Result<BTreeMap<String, T>> {
         if self.cfg.single {
-            let json = try!(Store::get_json_from_file(&self.id_to_path("")));
-            let o = try!(Store::get_object_from_json(&json));
+            let json = Store::get_json_from_file(&self.id_to_path(""))?;
+            let o = Store::get_object_from_json(&json)?;
             let mut result = BTreeMap::new();
             for x in o.iter() {
                 let (k, v) = x;
@@ -243,11 +246,11 @@ impl Store {
             }
             Ok(result)
         } else {
-            let meta = try!(metadata(&self.path));
+            let meta = metadata(&self.path)?;
             if !meta.is_dir() {
                 Err(Error::new(ErrorKind::NotFound, "invalid path"))
             } else {
-                let entries = try!(read_dir(&self.path));
+                let entries = read_dir(&self.path)?;
                 Ok(entries.filter_map(|e| {
                         e.and_then(|x| {
                                 x.metadata().and_then(|m| {
@@ -271,8 +274,8 @@ impl Store {
 
     pub fn delete(&self, id: &str) -> Result<()> {
         if self.cfg.single {
-            let json = try!(Store::get_json_from_file(&self.path));
-            let o = try!(Store::get_object_from_json(&json));
+            let json = Store::get_json_from_file(&self.path)?;
+            let o = Store::get_object_from_json(&json)?;
             let mut x = o.clone();
             if x.contains_key(id) {
                 x.remove(id);
