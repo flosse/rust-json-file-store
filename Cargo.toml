@@ -11,8 +11,8 @@ keywords = ["json", "file", "store", "db", "database"]
 categories = ["database"]
 
 [dependencies]
-fs2 = "0.2"
-uuid = { version = "0.2", features = ["v4"] }
+fs2 = "0.4"
+uuid = { version = "0.4", features = ["v4"] }
 serde = "0.9"
 serde_json = "0.9"
 
