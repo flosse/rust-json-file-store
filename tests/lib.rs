@@ -1,8 +1,7 @@
 extern crate jfs;
 extern crate uuid;
-
-#[cfg(feature = "rustc-serialize")]
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
 
 use std::io::prelude::*;
 use std::fs::{remove_dir_all, File, remove_file};
@@ -13,46 +12,20 @@ use std::path::Path;
 use uuid::Uuid;
 use std::thread;
 
-#[cfg(feature = "rustc-serialize")]
-#[derive(RustcEncodable,RustcDecodable)]
+#[derive(Serialize,Deserialize)]
 struct X {
     x: u32,
 }
 
-#[cfg(feature = "serde_json")]
-#[derive(Deserialize,Serialize)]
-struct X {
-    x: u32,
-}
-
-#[cfg(feature = "rustc-serialize")]
-#[derive(RustcEncodable,RustcDecodable)]
+#[derive(Serialize,Deserialize)]
 struct Y {
     y: i32,
 }
 
-#[cfg(feature = "serde_json")]
-#[derive(Deserialize,Serialize)]
-struct Y {
-    y: i32,
-}
-
-#[cfg(feature = "rustc-serialize")]
-#[derive(RustcEncodable,RustcDecodable)]
+#[derive(Serialize,Deserialize)]
 struct Empty {}
 
-#[cfg(feature = "serde_json")]
-#[derive(Deserialize,Serialize)]
-struct Empty {}
-
-#[cfg(feature = "rustc-serialize")]
-#[derive(RustcEncodable,RustcDecodable)]
-struct Z {
-    z: f32,
-}
-
-#[cfg(feature = "serde_json")]
-#[derive(Deserialize,Serialize)]
+#[derive(Serialize,Deserialize)]
 struct Z {
     z: f32,
 }
@@ -183,27 +156,12 @@ fn pretty_print_file_content() {
     cfg.pretty = true;
     let db = Store::new_with_cfg(&dir, cfg).unwrap();
 
-    #[cfg(feature = "serde_json")]
     #[derive(Deserialize,Serialize)]
     struct SubStruct {
         c: u32,
     };
 
-    #[cfg(feature = "rustc-serialize")]
-    #[derive(RustcEncodable,RustcDecodable)]
-    struct SubStruct {
-        c: u32,
-    };
-
-    #[cfg(feature = "serde_json")]
     #[derive(Deserialize,Serialize)]
-    struct MyData {
-        a: String,
-        b: SubStruct,
-    };
-
-    #[cfg(feature = "rustc-serialize")]
-    #[derive(RustcEncodable,RustcDecodable)]
     struct MyData {
         a: String,
         b: SubStruct,

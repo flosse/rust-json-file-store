@@ -12,10 +12,8 @@ keywords = ["json", "file", "store", "db", "database"]
 [dependencies]
 fs2 = "0.2"
 uuid = { version = "0.2", features = ["v4"] }
-rustc-serialize = { version = "0.3", optional = true }
-serde = { version = "0.8", optional = true }
-serde_json = { version = "0.8", optional = true }
-serde_macros = { version = "0.8", optional = true }
+serde = "0.9"
+serde_json = "0.9"
 
-[features]
-default = ["rustc-serialize"]
+[dev-dependencies]
+serde_derive = { version = "0.9" }

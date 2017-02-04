@@ -8,31 +8,15 @@
 //! Don't use it if you want to persist a large amount of objects.
 //! Use a real DB instead.
 //!
-//! # Installation
-//!
-//! Depending on which serialization framework you like to use,
-//! you have to enable it by setting the corresponding features
-//! in `Cargo.toml`.
-//!
-//! By default `rustc-serialize` is used. To enable support for serde
-//! add the following to your configuration:
-//!
-//!
-//! ```toml
-//! [dependencies.jfs]
-//! version = "0.2"
-//! features = ["serde", "serde_json"]
-//! default-features = false
-//! ```
-//!
 //! # Example
 //!
 //! ```
 //! extern crate jfs;
-//! extern crate rustc_serialize;
+//! #[macro_use]
+//! extern crate serde_derive;
 //! use jfs::Store;
 //!
-//! #[derive(RustcEncodable,RustcDecodable)]
+//! #[derive(Serialize,Deserialize)]
 //! struct Foo {
 //!   foo: String
 //! }
@@ -64,31 +48,17 @@
 //! ```
 
 extern crate uuid;
-#[cfg(feature = "rustc-serialize")]
-extern crate rustc_serialize;
 extern crate fs2;
+extern crate serde;
+extern crate serde_json;
 
 use std::io::prelude::*;
 use std::io::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
-#[cfg(feature = "rustc-serialize")]
-use rustc_serialize::{Encodable as Serialize, Decodable as Deserialize};
-#[cfg(feature = "rustc-serialize")]
-use rustc_serialize::json::{self, Json as Value, Object};
-
-#[cfg(feature = "serde")]
-extern crate serde;
-#[cfg(feature = "serde_json")]
-extern crate serde_json;
-
-#[cfg(feature = "serde")]
 use serde::{Serialize, Deserialize};
-#[cfg(feature = "serde_json")]
 use serde_json::Value;
-#[cfg(feature = "serde_json")]
 use serde_json::value::Map;
-#[cfg(feature = "serde_json")]
 use serde_json::ser::{Serializer, PrettyFormatter};
 
 use std::path::{Path, PathBuf};
@@ -96,7 +66,6 @@ use std::fs::{read_dir, rename, create_dir_all, remove_file, metadata, OpenOptio
 use std::collections::BTreeMap;
 use fs2::FileExt;
 
-#[cfg(feature = "serde_json")]
 type Object = Map<String, Value>;
 
 #[derive(Clone,Copy)]
@@ -137,7 +106,6 @@ impl Store {
             .ok_or_else(|| Error::new(ErrorKind::Other, "invalid id"))
     }
 
-    #[cfg(feature = "serde_json")]
     fn to_writer_pretty<W: Write, T: Serialize>(&self, writer: &mut W, value: &T) -> Result<()> {
         let mut indent: Vec<char> = vec![];
         for _ in 0..self.cfg.indent {
@@ -149,23 +117,12 @@ impl Store {
         Ok(())
     }
 
-    #[cfg(feature = "serde_json")]
     fn to_vec_pretty<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
         let mut writer: Vec<u8> = vec![];
         try!(self.to_writer_pretty(&mut writer, value));
         Ok(writer)
     }
 
-    #[cfg(feature = "rustc-serialize")]
-    fn object_to_string<T: Serialize>(&self, obj: &T) -> Result<String> {
-        if self.cfg.pretty {
-            Ok(json::as_pretty_json(&obj).indent(self.cfg.indent).to_string())
-        } else {
-            json::encode(&obj).map_err(|err| Error::new(ErrorKind::Other, err))
-        }
-    }
-
-    #[cfg(feature = "serde_json")]
     fn object_to_string<T: Serialize>(&self, obj: &T) -> Result<String> {
         if self.cfg.pretty {
             let vec = try!(self.to_vec_pretty(obj));
@@ -205,16 +162,9 @@ impl Store {
         Ok(buffer)
     }
 
-    #[cfg(feature = "serde_json")]
     fn get_json_from_file(file_name: &PathBuf) -> Result<Value> {
         let s = try!(Store::get_string_from_file(file_name));
         serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
-    }
-
-    #[cfg(feature = "rustc-serialize")]
-    fn get_json_from_file(file_name: &PathBuf) -> Result<Value> {
-        let s = try!(Store::get_string_from_file(file_name));
-        Value::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 
     fn get_object_from_json(json: &Value) -> Result<&Object> {
@@ -250,25 +200,12 @@ impl Store {
         self.save_with_id(obj, &Uuid::new_v4().to_string())
     }
 
-    #[cfg(feature = "rustc-serialize")]
-    fn to_json_value<T: Serialize>(obj: &T) -> Result<Value> {
-        // start dirty
-        let s = try!(json::encode(&obj).map_err(|err| Error::new(ErrorKind::InvalidData, err)));
-        Value::from_str(&s).map_err(|err| Error::new(ErrorKind::InvalidData, err))
-        // end dirty
-    }
-
-    #[cfg(feature = "serde_json")]
-    fn to_json_value<T: Serialize>(obj: &T) -> Result<Value> {
-        Ok(serde_json::to_value(&obj))
-    }
-
     pub fn save_with_id<T: Serialize + Deserialize>(&self, obj: &T, id: &str) -> Result<String> {
         if self.cfg.single {
             let json = try!(Store::get_json_from_file(&self.path));
             let o = try!(Store::get_object_from_json(&json));
             let mut x = o.clone();
-            let j = try!(Self::to_json_value(obj));
+            let j = try!(serde_json::to_value(&obj).map_err(|err| Error::new(ErrorKind::Other, err)));
             x.insert(id.to_string(), j);
             try!(self.save_object_to_file(&x, &self.path));
 
@@ -278,12 +215,6 @@ impl Store {
         Ok(id.to_owned())
     }
 
-    #[cfg(feature = "rustc-serialize")]
-    fn decode<T: Deserialize>(o: Value) -> Result<T> {
-        T::decode(&mut json::Decoder::new(o)).map_err(|err| Error::new(ErrorKind::Other, err))
-    }
-
-    #[cfg(feature = "serde_json")]
     fn decode<T: Deserialize>(o: Value) -> Result<T> {
         serde_json::from_value(o).map_err(|err| Error::new(ErrorKind::Other, err))
     }
@@ -291,7 +222,7 @@ impl Store {
     pub fn get<T: Deserialize>(&self, id: &str) -> Result<T> {
         let json = try!(Store::get_json_from_file(&self.id_to_path(id)));
         let o = if self.cfg.single {
-            let x = try!(json.find(id).ok_or(Error::new(ErrorKind::NotFound, "no such object")));
+            let x = try!(json.get(id).ok_or(Error::new(ErrorKind::NotFound, "no such object")));
             x.clone()
         } else {
             json
