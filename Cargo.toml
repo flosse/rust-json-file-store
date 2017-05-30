@@ -12,7 +12,7 @@ categories = ["database"]
 
 [dependencies]
 fs2 = "0.4"
-uuid = { version = "0.4", features = ["v4"] }
+uuid = { version = "0.5", features = ["v4"] }
 serde = "1"
 serde_json = "1"
 
