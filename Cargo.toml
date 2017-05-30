@@ -13,8 +13,8 @@ categories = ["database"]
 [dependencies]
 fs2 = "0.4"
 uuid = { version = "0.4", features = ["v4"] }
-serde = "0.9"
-serde_json = "0.9"
+serde = "1"
+serde_json = "1"
 
 [dev-dependencies]
-serde_derive = { version = "0.9" }
+serde_derive = { version = "1" }
