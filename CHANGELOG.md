@@ -1,3 +1,8 @@
+## v0.4.0
+
+- use serde v1.x
+- use uuid v0.5.x
+
 ## v0.3.0
 
 - BREAKING changes:

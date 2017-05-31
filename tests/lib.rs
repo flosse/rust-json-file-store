@@ -186,7 +186,7 @@ fn get() {
     let dir = format!(".specTests-{}", Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
-    Write::write_all(&mut file, "{\"z\":9.9}".as_bytes()).unwrap();
+    Write::write_all(&mut file, b"{\"z\":9.9}").unwrap();
     let obj: Z = db.get("foo").unwrap();
     assert_eq!(obj.z, 9.9);
     assert!(teardown(&dir).is_ok());
@@ -221,10 +221,10 @@ fn all() {
     };
 
     let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
-    Write::write_all(&mut file, "{\"x\":1, \"y\":0}".as_bytes()).unwrap();
+    Write::write_all(&mut file, b"{\"x\":1, \"y\":0}").unwrap();
 
     let mut file = File::create(format!("{}/bar.json", dir)).unwrap();
-    Write::write_all(&mut file, "{\"y\":2}".as_bytes()).unwrap();
+    Write::write_all(&mut file, b"{\"y\":2}").unwrap();
 
     let all_x: BTreeMap<String, X> = db.all().unwrap();
     let all_y: BTreeMap<String, Y> = db.all().unwrap();

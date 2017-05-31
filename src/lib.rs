@@ -244,7 +244,7 @@ impl Store {
         let json = Store::get_json_from_file(&self.id_to_path(id))?;
         let o = if self.cfg.single {
             let x = json.get(id)
-                .ok_or(Error::new(ErrorKind::NotFound, "no such object"))?;
+                .ok_or_else(||Error::new(ErrorKind::NotFound, "no such object"))?;
             x.clone()
         } else {
             json
@@ -265,34 +265,32 @@ impl Store {
                     result.insert(k.clone(), r);
                 }
             }
-            Ok(result)
-        } else {
-            let meta = metadata(&self.path)?;
-            if !meta.is_dir() {
-                Err(Error::new(ErrorKind::NotFound, "invalid path"))
-            } else {
-
-                let entries = read_dir(&self.path)?
-                    .filter_map(|e|
-                        e.and_then(|x|
-                            x.metadata().and_then(|m|
-                                if m.is_file() {
-                                    self.path_buf_to_id(x.path())
-                                } else {
-                                    Err(Error::new(ErrorKind::Other, "not a file"))
-                                }
-                            )
-                        ).ok()
-                    )
-                    .filter_map(|id| match self.get(&id) {
-                        Ok(x) => Some((id.clone(), x)),
-                        _ => None,
-                    })
-                    .collect::<BTreeMap<String, T>>();
-
-                Ok(entries)
-            }
+            return Ok(result);
         }
+
+        if !metadata(&self.path)?.is_dir() {
+            return Err(Error::new(ErrorKind::NotFound, "invalid path"));
+        }
+
+        let entries = read_dir(&self.path)?
+            .filter_map(|e|
+                e.and_then(|x|
+                    x.metadata().and_then(|m|
+                        if m.is_file() {
+                            self.path_buf_to_id(x.path())
+                        } else {
+                            Err(Error::new(ErrorKind::Other, "not a file"))
+                        }
+                    )
+                ).ok()
+            )
+            .filter_map(|id| match self.get(&id) {
+                Ok(x) => Some((id.clone(), x)),
+                _ => None,
+            })
+            .collect::<BTreeMap<String, T>>();
+
+        Ok(entries)
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
