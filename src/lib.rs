@@ -10,7 +10,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```rust,no_run
 //! extern crate jfs;
 //! #[macro_use]
 //! extern crate serde_derive;
@@ -32,7 +32,7 @@
 //!
 //! You can also store all data in one single JSON-File:
 //!
-//! ```
+//! ```rust,no_run
 //! let mut cfg = jfs::Config::default();
 //! cfg.single = true; // false is default
 //! let db = jfs::Store::new_with_cfg("data",cfg);
@@ -41,7 +41,7 @@
 //! If you like to pretty print the file content, set `pretty` to `true`
 //! and choose a number of whitespaces for the indention:
 //!
-//! ```
+//! ```rust,no_run
 //! let mut cfg = jfs::Config::default();
 //! cfg.pretty = true;  // false is default
 //! cfg.indent = 4;     // 2 is default
@@ -183,14 +183,30 @@ impl Store {
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid file content"))
     }
 
-    pub fn new(name: &str) -> Result<Store> {
-        Store::new_with_cfg(name, Config::default())
+    /// Opens a `Store` against the specified path.
+    ///
+    /// See `new_with_cfg(..)` for more details
+    ///
+    /// # Arguments
+    /// 
+    /// * `path` - path to the db directory of JSON documents
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Store> {
+        Store::new_with_cfg(path, Config::default())
     }
 
-    pub fn new_with_cfg(name: &str, cfg: Config) -> Result<Store> {
+    /// Opens a `Store` against the specified path with the given configuration 
+    ///
+    /// If the `Store` already exists, it will be opened, otherwise this has the side-effect of creating the new `Store`
+    ///  and the backing directories and files.
+    ///
+    /// # Arguments
+    /// 
+    /// * `path` - path to the db directory of JSON documents, if configured for single db mode then `.json` will be used as the extension (replacing any existing extension)
+    /// * `cfg` - configuration for the DB instance
+    pub fn new_with_cfg<P: AsRef<Path>>(path: P, cfg: Config) -> Result<Store> {
 
         let mut s = Store {
-            path: name.into(),
+            path: path.as_ref().to_path_buf(), // TODO: probably change this to take an owned PathBuf parameter
             cfg: cfg,
         };
 
