@@ -12,6 +12,8 @@ use std::path::Path;
 use uuid::Uuid;
 use std::thread;
 
+const TEST_DIR: &str = "target/test-data";
+
 #[derive(Serialize,Deserialize)]
 struct X {
     x: u32,
@@ -70,7 +72,7 @@ fn teardown(dir: &str) -> Result<()> {
 #[test]
 fn new_multi_threaded() {
     let mut threads: Vec<thread::JoinHandle<()>> = vec![];
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     for _ in 0..20 {
         let d = dir.clone();
         threads.push(thread::spawn(move || {
@@ -85,7 +87,7 @@ fn new_multi_threaded() {
 
 #[test]
 fn save() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let data = X { x: 56 };
     let id = db.save(&data).unwrap();
@@ -98,7 +100,7 @@ fn save() {
 
 #[test]
 fn save_and_read_multi_threaded() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let mut threads: Vec<thread::JoinHandle<()>> = vec![];
     let x = X { x: 56 };
@@ -126,7 +128,7 @@ fn save_and_read_multi_threaded() {
 
 #[test]
 fn save_empty_obj() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let id = db.save(&Empty {}).unwrap();
     let mut f = File::open(format!("{}/{}.json", dir, id)).unwrap();
@@ -138,7 +140,7 @@ fn save_empty_obj() {
 
 #[test]
 fn save_with_id() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let data = Y { y: -7 };
     db.save_with_id(&data, "foo").unwrap();
@@ -151,7 +153,7 @@ fn save_with_id() {
 
 #[test]
 fn pretty_print_file_content() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.pretty = true;
     let db = Store::new_with_cfg(&dir, cfg).unwrap();
@@ -183,7 +185,7 @@ fn pretty_print_file_content() {
 
 #[test]
 fn get() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let mut file = File::create(format!("{}/foo.json", dir)).unwrap();
     Write::write_all(&mut file, b"{\"z\":9.9}").unwrap();
@@ -194,7 +196,7 @@ fn get() {
 
 #[test]
 fn get_non_existent() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let res = db.get::<X>("foobarobject");
     assert!(res.is_err());
@@ -204,7 +206,7 @@ fn get_non_existent() {
 
 #[test]
 fn all() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
 
     #[cfg(feature = "serde_json")]
@@ -236,7 +238,7 @@ fn all() {
 
 #[test]
 fn delete() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let data = Y { y: 88 };
     let id = db.save(&data).unwrap();
@@ -252,7 +254,7 @@ fn delete() {
 
 #[test]
 fn delete_non_existent() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let db = Store::new(&dir).unwrap();
     let res = db.delete("blabla");
     assert!(res.is_err());
@@ -262,7 +264,7 @@ fn delete_non_existent() {
 
 #[test]
 fn single_new_multi_threaded() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let mut threads: Vec<thread::JoinHandle<()>> = vec![];
@@ -281,7 +283,7 @@ fn single_new_multi_threaded() {
 
 #[test]
 fn single_save() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -297,7 +299,7 @@ fn single_save() {
 
 #[test]
 fn single_save_and_read_multi_threaded() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -330,7 +332,7 @@ fn single_save_and_read_multi_threaded() {
 
 #[test]
 fn single_save_without_file_name_ext() {
-    let dir = format!(".specTests-{}", Uuid::new_v4());
+    let dir = format!("{}/.specTests-{}", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     Store::new_with_cfg(&dir, cfg).unwrap();
@@ -340,7 +342,7 @@ fn single_save_without_file_name_ext() {
 
 #[test]
 fn single_get() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -352,7 +354,7 @@ fn single_get() {
 
 #[test]
 fn single_get_non_existent() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -364,7 +366,7 @@ fn single_get_non_existent() {
 
 #[test]
 fn single_all() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -378,7 +380,7 @@ fn single_all() {
 
 #[test]
 fn single_delete() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
@@ -392,7 +394,7 @@ fn single_delete() {
 
 #[test]
 fn single_delete_non_existent() {
-    let file_name = format!(".specTests-{}.json", Uuid::new_v4());
+    let file_name = format!("{}/.specTests-{}.json", TEST_DIR, Uuid::new_v4());
     let mut cfg = Config::default();
     cfg.single = true;
     let db = Store::new_with_cfg(&file_name, cfg).unwrap();
