@@ -224,6 +224,14 @@ impl Store {
         Ok(s)
     }
 
+    /// Returns the storage path for the backing JSON store.
+    ///
+    /// In single-file-mode this will be the JSON file location, otherwise it's 
+    ///  the directory in which all JSON objects are stored. 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn save<T>(&self, obj: &T) -> Result<String>
         where for<'de> T: Serialize + Deserialize<'de>
     {
