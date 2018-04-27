@@ -1,3 +1,9 @@
+## v0.5.0
+
+- use uuid v0.6.x
+- add method `path()` to access storage location
+- generify constructors path argument
+
 ## v0.4.0
 
 - use serde v1.x
