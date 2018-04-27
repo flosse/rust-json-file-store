@@ -47,28 +47,28 @@
 //! cfg.indent = 4;     // 2 is default
 //! ```
 
-extern crate uuid;
 extern crate fs2;
 extern crate serde;
 extern crate serde_json;
+extern crate uuid;
 
 use std::io::prelude::*;
 use std::io::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
-use serde::{Serialize, Deserialize};
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::ser::{PrettyFormatter, Serializer};
 use serde_json::value::Map;
-use serde_json::ser::{Serializer, PrettyFormatter};
+use serde_json::Value;
 
-use std::path::{Path, PathBuf};
-use std::fs::{read_dir, rename, create_dir_all, remove_file, metadata, OpenOptions};
-use std::collections::BTreeMap;
 use fs2::FileExt;
+use std::collections::BTreeMap;
+use std::fs::{create_dir_all, metadata, read_dir, remove_file, rename, OpenOptions};
+use std::path::{Path, PathBuf};
 
 type Object = Map<String, Value>;
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub struct Config {
     pub pretty: bool,
     pub indent: u32,
@@ -188,23 +188,22 @@ impl Store {
     /// See `new_with_cfg(..)` for more details
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `path` - path to the db directory of JSON documents
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Store> {
         Store::new_with_cfg(path, Config::default())
     }
 
-    /// Opens a `Store` against the specified path with the given configuration 
+    /// Opens a `Store` against the specified path with the given configuration
     ///
     /// If the `Store` already exists, it will be opened, otherwise this has the side-effect of creating the new `Store`
     ///  and the backing directories and files.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `path` - path to the db directory of JSON documents, if configured for single db mode then `.json` will be used as the extension (replacing any existing extension)
     /// * `cfg` - configuration for the DB instance
     pub fn new_with_cfg<P: AsRef<Path>>(path: P, cfg: Config) -> Result<Store> {
-
         let mut s = Store {
             path: path.as_ref().to_path_buf(), // TODO: probably change this to take an owned PathBuf parameter
             cfg: cfg,
@@ -226,30 +225,30 @@ impl Store {
 
     /// Returns the storage path for the backing JSON store.
     ///
-    /// In single-file-mode this will be the JSON file location, otherwise it's 
-    ///  the directory in which all JSON objects are stored. 
+    /// In single-file-mode this will be the JSON file location, otherwise it's
+    ///  the directory in which all JSON objects are stored.
     pub fn path(&self) -> &Path {
         &self.path
     }
 
     pub fn save<T>(&self, obj: &T) -> Result<String>
-        where for<'de> T: Serialize + Deserialize<'de>
+    where
+        for<'de> T: Serialize + Deserialize<'de>,
     {
         self.save_with_id(obj, &Uuid::new_v4().to_string())
     }
 
     pub fn save_with_id<T>(&self, obj: &T, id: &str) -> Result<String>
-        where for<'de> T: Serialize + Deserialize<'de>
+    where
+        for<'de> T: Serialize + Deserialize<'de>,
     {
         if self.cfg.single {
             let json = Store::get_json_from_file(&self.path)?;
             let o = Store::get_object_from_json(&json)?;
             let mut x = o.clone();
-            let j = serde_json::to_value(&obj)
-                .map_err(|err| Error::new(ErrorKind::Other, err))?;
+            let j = serde_json::to_value(&obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
             x.insert(id.to_string(), j);
             self.save_object_to_file(&x, &self.path)?;
-
         } else {
             self.save_object_to_file(obj, &self.id_to_path(id))?;
         }
@@ -257,18 +256,20 @@ impl Store {
     }
 
     fn decode<T>(o: Value) -> Result<T>
-        where for<'de> T: Deserialize<'de>
+    where
+        for<'de> T: Deserialize<'de>,
     {
         serde_json::from_value(o).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 
     pub fn get<T>(&self, id: &str) -> Result<T>
-        where for<'de> T: Deserialize<'de>
+    where
+        for<'de> T: Deserialize<'de>,
     {
         let json = Store::get_json_from_file(&self.id_to_path(id))?;
         let o = if self.cfg.single {
             let x = json.get(id)
-                .ok_or_else(||Error::new(ErrorKind::NotFound, "no such object"))?;
+                .ok_or_else(|| Error::new(ErrorKind::NotFound, "no such object"))?;
             x.clone()
         } else {
             json
@@ -277,7 +278,8 @@ impl Store {
     }
 
     pub fn all<T>(&self) -> Result<BTreeMap<String, T>>
-        where for<'de> T: Deserialize<'de>
+    where
+        for<'de> T: Deserialize<'de>,
     {
         if self.cfg.single {
             let json = Store::get_json_from_file(&self.id_to_path(""))?;
@@ -297,17 +299,17 @@ impl Store {
         }
 
         let entries = read_dir(&self.path)?
-            .filter_map(|e|
-                e.and_then(|x|
-                    x.metadata().and_then(|m|
+            .filter_map(|e| {
+                e.and_then(|x| {
+                    x.metadata().and_then(|m| {
                         if m.is_file() {
                             self.path_buf_to_id(x.path())
                         } else {
                             Err(Error::new(ErrorKind::Other, "not a file"))
                         }
-                    )
-                ).ok()
-            )
+                    })
+                }).ok()
+            })
             .filter_map(|id| match self.get(&id) {
                 Ok(x) => Some((id.clone(), x)),
                 _ => None,

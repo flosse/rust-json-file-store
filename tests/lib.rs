@@ -3,31 +3,31 @@ extern crate uuid;
 #[macro_use]
 extern crate serde_derive;
 
-use std::io::prelude::*;
-use std::fs::{remove_dir_all, File, remove_file};
 use jfs::{Config, Store};
 use std::collections::BTreeMap;
-use std::io::{Result, ErrorKind};
+use std::fs::{remove_dir_all, remove_file, File};
+use std::io::prelude::*;
+use std::io::{ErrorKind, Result};
 use std::path::Path;
-use uuid::Uuid;
 use std::thread;
+use uuid::Uuid;
 
 const TEST_DIR: &str = "target/test-data";
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct X {
     x: u32,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct Y {
     y: i32,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct Empty {}
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct Z {
     z: f32,
 }
@@ -48,22 +48,18 @@ fn teardown(dir: &str) -> Result<()> {
     let p = Path::new(dir);
     if p.is_file() {
         match remove_file(p) {
-            Err(err) => {
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(()),
-                    _ => Err(err),
-                }
-            }
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => Ok(()),
+                _ => Err(err),
+            },
             Ok(_) => Ok(()),
         }
     } else {
         match remove_dir_all(dir) {
-            Err(err) => {
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(()),
-                    _ => Err(err),
-                }
-            }
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => Ok(()),
+                _ => Err(err),
+            },
             Ok(_) => Ok(()),
         }
     }
@@ -158,12 +154,12 @@ fn pretty_print_file_content() {
     cfg.pretty = true;
     let db = Store::new_with_cfg(&dir, cfg).unwrap();
 
-    #[derive(Deserialize,Serialize)]
+    #[derive(Deserialize, Serialize)]
     struct SubStruct {
         c: u32,
     };
 
-    #[derive(Deserialize,Serialize)]
+    #[derive(Deserialize, Serialize)]
     struct MyData {
         a: String,
         b: SubStruct,
@@ -210,13 +206,13 @@ fn all() {
     let db = Store::new(&dir).unwrap();
 
     #[cfg(feature = "serde_json")]
-    #[derive(Deserialize,Serialize)]
+    #[derive(Deserialize, Serialize)]
     struct X {
         x: u32,
         y: u32,
     };
     #[cfg(feature = "rustc-serialize")]
-    #[derive(RustcEncodable,RustcDecodable)]
+    #[derive(RustcEncodable, RustcDecodable)]
     struct X {
         x: u32,
         y: u32,
@@ -292,8 +288,10 @@ fn single_save() {
     let y = Y { y: 4 };
     db.save_with_id(&x, "x").unwrap();
     db.save_with_id(&y, "y").unwrap();
-    assert_eq!(read_from_test_file(&file_name),
-               "{\"x\":{\"x\":3},\"y\":{\"y\":4}}");
+    assert_eq!(
+        read_from_test_file(&file_name),
+        "{\"x\":{\"x\":3},\"y\":{\"y\":4}}"
+    );
     assert!(teardown(&file_name).is_ok());
 }
 
@@ -322,7 +320,6 @@ fn single_save_and_read_multi_threaded() {
             db.get::<X>("foo").unwrap();
         });
         threads.push(c);
-
     }
     for c in threads {
         c.join().unwrap();
@@ -337,7 +334,7 @@ fn single_save_without_file_name_ext() {
     cfg.single = true;
     Store::new_with_cfg(&dir, cfg).unwrap();
     assert!(Path::new(&format!("{}.json", dir)).exists());
-    assert!(teardown(&format!("{}.json",dir)).is_ok());
+    assert!(teardown(&format!("{}.json", dir)).is_ok());
 }
 
 #[test]
@@ -376,7 +373,6 @@ fn single_all() {
     assert_eq!(all.get("bar").unwrap().x, 9);
     assert!(teardown(&file_name).is_ok());
 }
-
 
 #[test]
 fn single_delete() {
