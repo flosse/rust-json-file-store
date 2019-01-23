@@ -1,4 +1,4 @@
-// Copyright (c) 2016 - 2018 Markus Kohlhase <mail@markus-kohlhase.de>
+// Copyright (c) 2016 - 2019 Markus Kohlhase <mail@markus-kohlhase.de>
 
 //! A simple JSON file store written in Rust.
 //! This is a port and drop-in replacement of the Node.js library
@@ -47,24 +47,23 @@
 //! cfg.indent = 4;     // 2 is default
 //! ```
 
-extern crate fs2;
-extern crate serde;
-extern crate serde_json;
-extern crate uuid;
-
-use std::io::prelude::*;
-use std::io::{Error, ErrorKind, Result};
-use uuid::Uuid;
-
-use serde::{Deserialize, Serialize};
-use serde_json::ser::{PrettyFormatter, Serializer};
-use serde_json::value::Map;
-use serde_json::Value;
-
 use fs2::FileExt;
-use std::collections::BTreeMap;
-use std::fs::{create_dir_all, metadata, read_dir, remove_file, rename, OpenOptions};
-use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
+use serde_json::{
+    ser::{PrettyFormatter, Serializer},
+    value::Map,
+    Value,
+};
+use std::io::{
+    prelude::*,
+    {Error, ErrorKind, Result},
+};
+use std::{
+    collections::BTreeMap,
+    fs::{create_dir_all, metadata, read_dir, remove_file, rename, OpenOptions},
+    path::{Path, PathBuf},
+};
+use uuid::Uuid;
 
 type Object = Map<String, Value>;
 
@@ -268,7 +267,8 @@ impl Store {
     {
         let json = Store::get_json_from_file(&self.id_to_path(id))?;
         let o = if self.cfg.single {
-            let x = json.get(id)
+            let x = json
+                .get(id)
                 .ok_or_else(|| Error::new(ErrorKind::NotFound, "no such object"))?;
             x.clone()
         } else {
@@ -308,7 +308,8 @@ impl Store {
                             Err(Error::new(ErrorKind::Other, "not a file"))
                         }
                     })
-                }).ok()
+                })
+                .ok()
             })
             .filter_map(|id| match self.get(&id) {
                 Ok(x) => Some((id.clone(), x)),

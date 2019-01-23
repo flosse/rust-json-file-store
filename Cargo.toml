@@ -9,6 +9,7 @@ documentation = "https://docs.rs/crate/jfs/"
 description = "A JSON file store"
 keywords = ["json", "file", "store", "db", "database"]
 categories = ["database"]
+edition = "2018"
 
 [dependencies]
 fs2 = "0.4"
