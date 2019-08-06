@@ -135,7 +135,9 @@ impl Store {
 
     fn save_object_to_file<T: Serialize>(&self, obj: &T, file_name: &PathBuf) -> Result<()> {
         let json_string = self.object_to_string(obj)?;
-        let tmp_filename = Path::new(&Uuid::new_v4().to_string()).with_extension("tmp");
+        let mut tmp_filename = file_name.clone();
+        tmp_filename.set_file_name(&Uuid::new_v4().to_string());
+        tmp_filename.set_extension("tmp");
         let file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -205,7 +207,7 @@ impl Store {
     pub fn new_with_cfg<P: AsRef<Path>>(path: P, cfg: Config) -> Result<Store> {
         let mut s = Store {
             path: path.as_ref().to_path_buf(), // TODO: probably change this to take an owned PathBuf parameter
-            cfg: cfg,
+            cfg,
         };
 
         if cfg.single {
