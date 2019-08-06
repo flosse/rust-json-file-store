@@ -1,3 +1,9 @@
+## v0.6.0
+
+- create temporary files within the same directory like the target file
+- switched to Rust edition 2018
+- use uuid v0.7.x
+
 ## v0.5.0
 
 - use uuid v0.6.x
