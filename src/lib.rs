@@ -18,15 +18,15 @@
 //!
 //! #[derive(Serialize,Deserialize)]
 //! struct Foo {
-//!   foo: String
+//!     foo: String
 //! }
 //!
 //! pub fn main() {
-//!    let db = Store::new("data").unwrap();
-//!    let f = Foo { foo: "bar".to_owned() };
-//!    let id = db.save(&f).unwrap();
-//!    let obj = db.get::<Foo>(&id).unwrap();
-//!    db.delete(&id).unwrap();
+//!     let db = Store::new("data").unwrap();
+//!     let f = Foo { foo: "bar".to_owned() };
+//!     let id = db.save(&f).unwrap();
+//!     let obj = db.get::<Foo>(&id).unwrap();
+//!     db.delete(&id).unwrap();
 //! }
 //! ```
 //!
@@ -46,144 +46,38 @@
 //! cfg.pretty = true;  // false is default
 //! cfg.indent = 4;     // 2 is default
 //! ```
+//!
+//! Creating a store instance that is living in the memory can be done like this:
+//!
+//! ```rust,no_run
+//! let db = jfs::Store::new(jfs::IN_MEMORY).unwrap();
+//! ```
 
-use fs2::FileExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{
-    ser::{PrettyFormatter, Serializer},
-    value::Map,
-    Value,
-};
-use std::io::{
-    prelude::*,
-    {Error, ErrorKind, Result},
-};
-use std::{
-    collections::BTreeMap,
-    fs::{create_dir_all, metadata, read_dir, remove_file, rename, OpenOptions},
-    path::{Path, PathBuf},
-};
-use uuid::Uuid;
+use std::{collections::BTreeMap, io::Result, path::Path};
 
-type Object = Map<String, Value>;
+mod file_store;
+mod json_store;
+mod memory_store;
 
-#[derive(Clone, Copy)]
-pub struct Config {
-    pub pretty: bool,
-    pub indent: u32,
-    pub single: bool,
-}
+use file_store::FileStore;
+use json_store::JsonStore;
+use memory_store::MemoryStore;
 
-impl Default for Config {
-    fn default() -> Config {
-        Config {
-            indent: 2,
-            pretty: false,
-            single: false,
-        }
-    }
-}
+pub use file_store::Config;
 
 #[derive(Clone)]
-pub struct Store {
-    path: PathBuf,
-    cfg: Config,
+pub struct Store(StoreType);
+
+#[derive(Clone)]
+enum StoreType {
+    File(FileStore),
+    Memory(MemoryStore),
 }
 
+pub const IN_MEMORY: &str = "::memory::";
+
 impl Store {
-    fn id_to_path(&self, id: &str) -> PathBuf {
-        if self.cfg.single {
-            self.path.clone()
-        } else {
-            self.path.join(id).with_extension("json")
-        }
-    }
-
-    fn path_buf_to_id(&self, p: PathBuf) -> Result<String> {
-        p.file_stem()
-            .and_then(|n| n.to_os_string().into_string().ok())
-            .ok_or_else(|| Error::new(ErrorKind::Other, "invalid id"))
-    }
-
-    fn to_writer_pretty<W: Write, T: Serialize>(&self, writer: &mut W, value: &T) -> Result<()> {
-        let mut indent: Vec<char> = vec![];
-        for _ in 0..self.cfg.indent {
-            indent.push(' ');
-        }
-        let b = indent.into_iter().collect::<String>().into_bytes();
-        let mut s = Serializer::with_formatter(writer, PrettyFormatter::with_indent(&b));
-        value
-            .serialize(&mut s)
-            .map_err(|err| Error::new(ErrorKind::InvalidData, err))?;
-        Ok(())
-    }
-
-    fn to_vec_pretty<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
-        let mut writer: Vec<u8> = vec![];
-        self.to_writer_pretty(&mut writer, value)?;
-        Ok(writer)
-    }
-
-    fn object_to_string<T: Serialize>(&self, obj: &T) -> Result<String> {
-        if self.cfg.pretty {
-            let vec = self.to_vec_pretty(obj)?;
-            String::from_utf8(vec).map_err(|err| Error::new(ErrorKind::Other, err))
-        } else {
-            serde_json::to_string(obj).map_err(|err| Error::new(ErrorKind::Other, err))
-        }
-    }
-
-    fn save_object_to_file<T: Serialize>(&self, obj: &T, file_name: &PathBuf) -> Result<()> {
-        let json_string = self.object_to_string(obj)?;
-        let mut tmp_filename = file_name.clone();
-        tmp_filename.set_file_name(&Uuid::new_v4().to_string());
-        tmp_filename.set_extension("tmp");
-        let file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&file_name)?;
-        let mut tmp_file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&tmp_filename)?;
-        file.lock_exclusive()?;
-        tmp_file.lock_exclusive()?;
-
-        match Write::write_all(&mut tmp_file, json_string.as_bytes()) {
-            Err(err) => Err(err),
-            Ok(_) => {
-                rename(tmp_filename, file_name)?;
-                tmp_file.unlock()?;
-                file.unlock()
-            }
-        }
-    }
-
-    fn get_string_from_file(file_name: &PathBuf) -> Result<String> {
-        let mut f = OpenOptions::new()
-            .read(true)
-            .write(false)
-            .create(false)
-            .open(&file_name)?;
-        let mut buffer = String::new();
-        f.lock_shared()?;
-        f.read_to_string(&mut buffer)?;
-        f.unlock()?;
-        Ok(buffer)
-    }
-
-    fn get_json_from_file(file_name: &PathBuf) -> Result<Value> {
-        let s = Store::get_string_from_file(file_name)?;
-        serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
-    }
-
-    fn get_object_from_json(json: &Value) -> Result<&Object> {
-        json.as_object()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid file content"))
-    }
-
     /// Opens a `Store` against the specified path.
     ///
     /// See `new_with_cfg(..)` for more details
@@ -191,7 +85,7 @@ impl Store {
     /// # Arguments
     ///
     /// * `path` - path to the db directory of JSON documents
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Store> {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         Store::new_with_cfg(path, Config::default())
     }
 
@@ -204,24 +98,13 @@ impl Store {
     ///
     /// * `path` - path to the db directory of JSON documents, if configured for single db mode then `.json` will be used as the extension (replacing any existing extension)
     /// * `cfg` - configuration for the DB instance
-    pub fn new_with_cfg<P: AsRef<Path>>(path: P, cfg: Config) -> Result<Store> {
-        let mut s = Store {
-            path: path.as_ref().to_path_buf(), // TODO: probably change this to take an owned PathBuf parameter
-            cfg,
-        };
-
-        if cfg.single {
-            s.path = s.path.with_extension("json");
-            if !s.path.exists() {
-                let o = Object::new();
-                s.save_object_to_file(&o, &s.path)?;
-            }
-        } else if let Err(err) = create_dir_all(&s.path) {
-            if err.kind() != ErrorKind::AlreadyExists {
-                return Err(err);
-            }
+    pub fn new_with_cfg<P: AsRef<Path>>(path: P, cfg: Config) -> Result<Self> {
+        if path.as_ref() == Path::new(IN_MEMORY) {
+            Ok(Self(StoreType::Memory(MemoryStore::default())))
+        } else {
+            let s = FileStore::new_with_cfg(path, cfg)?;
+            Ok(Self(StoreType::File(s)))
         }
-        Ok(s)
     }
 
     /// Returns the storage path for the backing JSON store.
@@ -229,112 +112,56 @@ impl Store {
     /// In single-file-mode this will be the JSON file location, otherwise it's
     ///  the directory in which all JSON objects are stored.
     pub fn path(&self) -> &Path {
-        &self.path
+        match &self.0 {
+            StoreType::File(f) => f.path(),
+            StoreType::Memory(_) => Path::new(IN_MEMORY),
+        }
     }
 
     pub fn save<T>(&self, obj: &T) -> Result<String>
     where
         for<'de> T: Serialize + Deserialize<'de>,
     {
-        self.save_with_id(obj, &Uuid::new_v4().to_string())
+        match &self.0 {
+            StoreType::File(f) => f.save(obj),
+            StoreType::Memory(m) => m.save(obj),
+        }
     }
 
     pub fn save_with_id<T>(&self, obj: &T, id: &str) -> Result<String>
     where
         for<'de> T: Serialize + Deserialize<'de>,
     {
-        if self.cfg.single {
-            let json = Store::get_json_from_file(&self.path)?;
-            let o = Store::get_object_from_json(&json)?;
-            let mut x = o.clone();
-            let j = serde_json::to_value(&obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
-            x.insert(id.to_string(), j);
-            self.save_object_to_file(&x, &self.path)?;
-        } else {
-            self.save_object_to_file(obj, &self.id_to_path(id))?;
+        match &self.0 {
+            StoreType::File(f) => f.save_with_id(obj, id),
+            StoreType::Memory(m) => m.save_with_id(obj, id),
         }
-        Ok(id.to_owned())
-    }
-
-    fn decode<T>(o: Value) -> Result<T>
-    where
-        for<'de> T: Deserialize<'de>,
-    {
-        serde_json::from_value(o).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 
     pub fn get<T>(&self, id: &str) -> Result<T>
     where
         for<'de> T: Deserialize<'de>,
     {
-        let json = Store::get_json_from_file(&self.id_to_path(id))?;
-        let o = if self.cfg.single {
-            let x = json
-                .get(id)
-                .ok_or_else(|| Error::new(ErrorKind::NotFound, "no such object"))?;
-            x.clone()
-        } else {
-            json
-        };
-        Self::decode(o)
+        match &self.0 {
+            StoreType::File(f) => f.get(id),
+            StoreType::Memory(m) => m.get(id),
+        }
     }
 
     pub fn all<T>(&self) -> Result<BTreeMap<String, T>>
     where
         for<'de> T: Deserialize<'de>,
     {
-        if self.cfg.single {
-            let json = Store::get_json_from_file(&self.id_to_path(""))?;
-            let o = Store::get_object_from_json(&json)?;
-            let mut result = BTreeMap::new();
-            for x in o.iter() {
-                let (k, v) = x;
-                if let Ok(r) = Self::decode(v.clone()) {
-                    result.insert(k.clone(), r);
-                }
-            }
-            return Ok(result);
+        match &self.0 {
+            StoreType::File(f) => f.all(),
+            StoreType::Memory(m) => m.all(),
         }
-
-        if !metadata(&self.path)?.is_dir() {
-            return Err(Error::new(ErrorKind::NotFound, "invalid path"));
-        }
-
-        let entries = read_dir(&self.path)?
-            .filter_map(|e| {
-                e.and_then(|x| {
-                    x.metadata().and_then(|m| {
-                        if m.is_file() {
-                            self.path_buf_to_id(x.path())
-                        } else {
-                            Err(Error::new(ErrorKind::Other, "not a file"))
-                        }
-                    })
-                })
-                .ok()
-            })
-            .filter_map(|id| match self.get(&id) {
-                Ok(x) => Some((id.clone(), x)),
-                _ => None,
-            })
-            .collect::<BTreeMap<String, T>>();
-
-        Ok(entries)
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
-        if self.cfg.single {
-            let json = Store::get_json_from_file(&self.path)?;
-            let o = Store::get_object_from_json(&json)?;
-            let mut x = o.clone();
-            if x.contains_key(id) {
-                x.remove(id);
-            } else {
-                return Err(Error::new(ErrorKind::NotFound, "no such object"));
-            }
-            self.save_object_to_file(&x, &self.path)
-        } else {
-            remove_file(self.id_to_path(id))
+        match &self.0 {
+            StoreType::File(f) => f.delete(id),
+            StoreType::Memory(m) => m.delete(id),
         }
     }
 }
