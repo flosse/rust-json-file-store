@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     io::{Error, ErrorKind, Result},
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 use uuid::Uuid;
 
@@ -26,34 +26,14 @@ impl JsonStore for MemoryStore {
         for<'de> T: Serialize + Deserialize<'de>,
     {
         let json = serde_json::to_string(&obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
-
-        let map = match self.mem.read() {
-            Ok(map) => map,
-            Err(err) => {
-                error!("RwLock poisoned");
-                err.into_inner()
-            }
-        };
-
+        let map = self.mem.read().unwrap_or_else(handle_read_err);
         if let Some(val) = map.get(id) {
-            let mut value_guard = match val.lock() {
-                Ok(guard) => guard,
-                Err(err) => {
-                    error!("Mutex poisoned");
-                    err.into_inner()
-                }
-            };
+            let mut value_guard = val.lock().unwrap_or_else(handle_mutex_err);
             *value_guard = json;
             return Ok(id.to_owned());
         }
         drop(map);
-        let mut map = match self.mem.write() {
-            Ok(map) => map,
-            Err(err) => {
-                error!("RwLock poisoned");
-                err.into_inner()
-            }
-        };
+        let mut map = self.mem.write().unwrap_or_else(handle_write_err);
         map.insert(id.to_string(), Mutex::new(json));
         Ok(id.to_owned())
     }
@@ -62,23 +42,11 @@ impl JsonStore for MemoryStore {
     where
         for<'de> T: Deserialize<'de>,
     {
-        let map = match self.mem.read() {
-            Ok(map) => map,
-            Err(err) => {
-                error!("RwLock poisoned");
-                err.into_inner()
-            }
-        };
+        let map = self.mem.read().unwrap_or_else(handle_read_err);
         let value = map
             .get(id)
             .ok_or_else(|| Error::new(ErrorKind::NotFound, "no such object"))?;
-        let value_guard = match value.lock() {
-            Ok(guard) => guard,
-            Err(err) => {
-                error!("Mutex poisoned");
-                err.into_inner()
-            }
-        };
+        let value_guard = value.lock().unwrap_or_else(handle_mutex_err);
         serde_json::from_str(&value_guard).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 
@@ -87,22 +55,10 @@ impl JsonStore for MemoryStore {
         for<'de> T: Deserialize<'de>,
     {
         let mut result = BTreeMap::new();
-        let map = match self.mem.read() {
-            Ok(map) => map,
-            Err(err) => {
-                error!("RwLock poisoned");
-                err.into_inner()
-            }
-        };
+        let map = self.mem.read().unwrap_or_else(handle_read_err);
         for x in map.iter() {
             let (k, v) = x;
-            let value_guard = match v.lock() {
-                Ok(guard) => guard,
-                Err(err) => {
-                    error!("Mutex poisoned");
-                    err.into_inner()
-                }
-            };
+            let value_guard = v.lock().unwrap_or_else(handle_mutex_err);
             if let Ok(r) = serde_json::from_str(&value_guard) {
                 result.insert(k.clone(), r);
             }
@@ -111,13 +67,7 @@ impl JsonStore for MemoryStore {
     }
 
     fn delete(&self, id: &str) -> Result<()> {
-        let mut map = match self.mem.write() {
-            Ok(map) => map,
-            Err(err) => {
-                error!("RwLock poisoned");
-                err.into_inner()
-            }
-        };
+        let mut map = self.mem.write().unwrap_or_else(handle_write_err);
         if map.contains_key(id) {
             map.remove(id);
         } else {
@@ -125,6 +75,21 @@ impl JsonStore for MemoryStore {
         }
         Ok(())
     }
+}
+
+fn handle_mutex_err<'a, T>(err: PoisonError<MutexGuard<'a, T>>) -> MutexGuard<'a, T> {
+    error!("Mutex poisoned");
+    err.into_inner()
+}
+
+fn handle_read_err<'a, T>(err: PoisonError<RwLockReadGuard<'a, T>>) -> RwLockReadGuard<'a, T> {
+    error!("Read lock poisoned");
+    err.into_inner()
+}
+
+fn handle_write_err<'a, T>(err: PoisonError<RwLockWriteGuard<'a, T>>) -> RwLockWriteGuard<'a, T> {
+    error!("Write lock poisoned");
+    err.into_inner()
 }
 
 #[cfg(test)]
