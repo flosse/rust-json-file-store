@@ -1,4 +1,5 @@
 use crate::json_store::JsonStore;
+use log::error;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -26,15 +27,33 @@ impl JsonStore for MemoryStore {
     {
         let json = serde_json::to_string(&obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
 
-        let map = self.mem.read().expect("RwLock poisoned");
+        let map = match self.mem.read() {
+            Ok(map) => map,
+            Err(err) => {
+                error!("RwLock poisoned");
+                err.into_inner()
+            }
+        };
 
-        if let Some(e) = map.get(id) {
-            let mut e = e.lock().expect("Mutex poisoned");
-            *e = json;
+        if let Some(val) = map.get(id) {
+            let mut value_guard = match val.lock() {
+                Ok(guard) => guard,
+                Err(err) => {
+                    error!("Mutex poisoned");
+                    err.into_inner()
+                }
+            };
+            *value_guard = json;
             return Ok(id.to_owned());
         }
         drop(map);
-        let mut map = self.mem.write().expect("RwLock poisoned");
+        let mut map = match self.mem.write() {
+            Ok(map) => map,
+            Err(err) => {
+                error!("RwLock poisoned");
+                err.into_inner()
+            }
+        };
         map.insert(id.to_string(), Mutex::new(json));
         Ok(id.to_owned())
     }
@@ -43,12 +62,24 @@ impl JsonStore for MemoryStore {
     where
         for<'de> T: Deserialize<'de>,
     {
-        let map = self.mem.read().expect("RwLock poisoned");
-        let el = map
+        let map = match self.mem.read() {
+            Ok(map) => map,
+            Err(err) => {
+                error!("RwLock poisoned");
+                err.into_inner()
+            }
+        };
+        let value = map
             .get(id)
             .ok_or_else(|| Error::new(ErrorKind::NotFound, "no such object"))?;
-        let s = el.lock().expect("Mutex poisoned");
-        serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
+        let value_guard = match value.lock() {
+            Ok(guard) => guard,
+            Err(err) => {
+                error!("Mutex poisoned");
+                err.into_inner()
+            }
+        };
+        serde_json::from_str(&value_guard).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 
     fn all<T>(&self) -> Result<BTreeMap<String, T>>
@@ -56,10 +87,23 @@ impl JsonStore for MemoryStore {
         for<'de> T: Deserialize<'de>,
     {
         let mut result = BTreeMap::new();
-        let map = self.mem.read().expect("RwLock poisoned");
+        let map = match self.mem.read() {
+            Ok(map) => map,
+            Err(err) => {
+                error!("RwLock poisoned");
+                err.into_inner()
+            }
+        };
         for x in map.iter() {
             let (k, v) = x;
-            if let Ok(r) = serde_json::from_str(&v.lock().expect("Mutex poisoned")) {
+            let value_guard = match v.lock() {
+                Ok(guard) => guard,
+                Err(err) => {
+                    error!("Mutex poisoned");
+                    err.into_inner()
+                }
+            };
+            if let Ok(r) = serde_json::from_str(&value_guard) {
                 result.insert(k.clone(), r);
             }
         }
@@ -67,7 +111,13 @@ impl JsonStore for MemoryStore {
     }
 
     fn delete(&self, id: &str) -> Result<()> {
-        let mut map = self.mem.write().expect("RwLock poisoned");
+        let mut map = match self.mem.write() {
+            Ok(map) => map,
+            Err(err) => {
+                error!("RwLock poisoned");
+                err.into_inner()
+            }
+        };
         if map.contains_key(id) {
             map.remove(id);
         } else {

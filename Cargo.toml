@@ -12,6 +12,7 @@ categories = ["database"]
 edition = "2018"
 
 [dependencies]
+log = "*"
 fs2 = "0.4"
 uuid = { version = "0.7", features = ["v4"] }
 serde = "1"
