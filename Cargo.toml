@@ -1,6 +1,6 @@
 [package]
 name = "jfs"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Markus Kohlhase <mail@markus-kohlhase.de>"]
 license = "MIT"
 homepage = "https://github.com/flosse/rust-json-file-store"
@@ -12,7 +12,7 @@ categories = ["database"]
 edition = "2018"
 
 [dependencies]
-log = "*"
+log = "0.4"
 fs2 = "0.4"
 uuid = { version = "0.7", features = ["v4"] }
 serde = "1"

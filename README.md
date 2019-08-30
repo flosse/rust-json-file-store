@@ -1,7 +1,8 @@
-[![](http://meritbadge.herokuapp.com/jfs)](https://crates.io/crates/jfs)
-[![Build Status](https://travis-ci.org/flosse/rust-json-file-store.svg?branch=master)](https://travis-ci.org/flosse/rust-json-file-store)
-[![dependency status](https://deps.rs/repo/github/flosse/rust-json-file-store/status.svg)](https://deps.rs/repo/github/flosse/rust-json-file-store)
-[![Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://docs.rs/crate/jfs/)
+[![Crates.io](https://img.shields.io/crates/v/jfs.svg)](https://crates.io/crates/jfs)
+[![Docs.rs](https://docs.rs/jfs/badge.svg)](https://docs.rs/jfs/)
+[![Build status](https://travis-ci.org/flosse/rust-json-file-store.svg?branch=master)](https://travis-ci.org/flosse/rust-json-file-store)
+[![Dependency status](https://deps.rs/repo/github/flosse/rust-json-file-store/status.svg)](https://deps.rs/repo/github/flosse/rust-json-file-store)
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE-MIT)
 
 # jfs
 
@@ -23,15 +24,15 @@ use jfs::Store;
 
 #[derive(Serialize,Deserialize)]
 struct Foo {
-  foo: String
+    foo: String
 }
 
 pub fn main() {
-   let db = Store::new("data").unwrap();
-   let f = Foo { foo: "bar".to_owned() };
-   let id = db.save(&f).unwrap();
-   let obj = db.get::<Foo>(&id).unwrap();
-   db.delete(&id).unwrap();
+    let db = Store::new("data").unwrap();
+    let f = Foo { foo: "bar".to_owned() };
+    let id = db.save(&f).unwrap();
+    let obj = db.get::<Foo>(&id).unwrap();
+    db.delete(&id).unwrap();
 }
 ```
 
@@ -50,6 +51,12 @@ and choose a number of whitespaces for the indention:
 let mut cfg = jfs::Config::default();
 cfg.pretty = true;  // false is default
 cfg.indent = 4;     // 2 is default
+```
+
+Creating a store instance that is living in the memory can be done like this:
+
+```rust
+let db = jfs::Store::new(jfs::IN_MEMORY).unwrap();
 ```
 
 ## License

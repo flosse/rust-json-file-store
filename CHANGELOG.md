@@ -1,3 +1,7 @@
+## v0.6.1
+
+- add in-memory support
+
 ## v0.6.0
 
 - create temporary files within the same directory like the target file
