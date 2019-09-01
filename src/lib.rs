@@ -53,8 +53,14 @@
 //! let db = jfs::Store::new(jfs::IN_MEMORY).unwrap();
 //! ```
 
+use log::error;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, io::Result, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::Result,
+    path::{Path, PathBuf},
+    sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
 mod file_store;
 mod json_store;
@@ -71,7 +77,7 @@ pub struct Store(StoreType);
 
 #[derive(Clone)]
 enum StoreType {
-    File(FileStore),
+    File(Arc<RwLock<FileStore>>, PathBuf),
     Memory(MemoryStore),
 }
 
@@ -103,7 +109,8 @@ impl Store {
             Ok(Self(StoreType::Memory(MemoryStore::default())))
         } else {
             let s = FileStore::new_with_cfg(path, cfg)?;
-            Ok(Self(StoreType::File(s)))
+            let p = s.path().to_path_buf();
+            Ok(Self(StoreType::File(Arc::new(RwLock::new(s)), p)))
         }
     }
 
@@ -113,7 +120,7 @@ impl Store {
     ///  the directory in which all JSON objects are stored.
     pub fn path(&self) -> &Path {
         match &self.0 {
-            StoreType::File(f) => f.path(),
+            StoreType::File(_, p) => p,
             StoreType::Memory(_) => Path::new(IN_MEMORY),
         }
     }
@@ -123,7 +130,7 @@ impl Store {
         for<'de> T: Serialize + Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f) => f.save(obj),
+            StoreType::File(f, _) => f.write().unwrap_or_else(handle_write_err).save(obj),
             StoreType::Memory(m) => m.save(obj),
         }
     }
@@ -133,7 +140,10 @@ impl Store {
         for<'de> T: Serialize + Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f) => f.save_with_id(obj, id),
+            StoreType::File(f, _) => f
+                .write()
+                .unwrap_or_else(handle_write_err)
+                .save_with_id(obj, id),
             StoreType::Memory(m) => m.save_with_id(obj, id),
         }
     }
@@ -143,7 +153,7 @@ impl Store {
         for<'de> T: Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f) => f.get(id),
+            StoreType::File(f, _) => f.read().unwrap_or_else(handle_read_err).get(id),
             StoreType::Memory(m) => m.get(id),
         }
     }
@@ -153,15 +163,91 @@ impl Store {
         for<'de> T: Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f) => f.all(),
+            StoreType::File(f, _) => f.read().unwrap_or_else(handle_read_err).all(),
             StoreType::Memory(m) => m.all(),
         }
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
         match &self.0 {
-            StoreType::File(f) => f.delete(id),
+            StoreType::File(f, _) => f.write().unwrap_or_else(handle_write_err).delete(id),
             StoreType::Memory(m) => m.delete(id),
         }
+    }
+}
+
+fn handle_write_err<'a, T>(err: PoisonError<RwLockWriteGuard<'a, T>>) -> RwLockWriteGuard<'a, T> {
+    error!("Write lock poisoned");
+    err.into_inner()
+}
+
+fn handle_read_err<'a, T>(err: PoisonError<RwLockReadGuard<'a, T>>) -> RwLockReadGuard<'a, T> {
+    error!("Read lock poisoned");
+    err.into_inner()
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use serde_derive::{Deserialize, Serialize};
+    use std::thread;
+    use tempdir::TempDir;
+
+    #[derive(Serialize, Deserialize)]
+    struct Data {
+        x: i32,
+    }
+
+    fn multi_threaded_write(store: Store) {
+        let mut threads: Vec<thread::JoinHandle<()>> = vec![];
+        for i in 0..20 {
+            let db = store.clone();
+            let x = Data { x: i };
+            threads.push(thread::spawn(move || {
+                db.save_with_id(&x, &i.to_string()).unwrap();
+            }));
+        }
+        for t in threads {
+            t.join().unwrap();
+        }
+        let all = store.all::<Data>().unwrap();
+        assert_eq!(all.len(), 20);
+        for (id, data) in all {
+            assert_eq!(data.x.to_string(), id);
+        }
+    }
+
+    #[test]
+    fn multi_threaded_write_with_single_file() {
+        let dir = TempDir::new("test").expect("Could not create temporary directory");
+        let file = dir.path().join("db.json");
+        let mut cfg = Config::default();
+        cfg.single = true;
+        let store = Store::new_with_cfg(file, cfg).unwrap();
+        multi_threaded_write(store);
+    }
+
+    #[test]
+    fn multi_threaded_write_with_dir() {
+        #[derive(Serialize, Deserialize)]
+        struct Data {
+            x: i32,
+        }
+        let dir = TempDir::new("test").expect("Could not create temporary directory");
+        let mut cfg = Config::default();
+        cfg.single = false;
+        let store = Store::new_with_cfg(dir.path(), cfg).unwrap();
+        multi_threaded_write(store);
+    }
+
+    #[test]
+    fn multi_threaded_write_in_memory() {
+        #[derive(Serialize, Deserialize)]
+        struct Data {
+            x: i32,
+        }
+        let store = Store::new(IN_MEMORY).unwrap();
+        multi_threaded_write(store);
     }
 }

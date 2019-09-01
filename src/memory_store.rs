@@ -1,10 +1,10 @@
-use crate::json_store::JsonStore;
+use crate::{handle_read_err, handle_write_err, json_store::JsonStore};
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     io::{Error, ErrorKind, Result},
-    sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock},
 };
 use uuid::Uuid;
 
@@ -79,16 +79,6 @@ impl JsonStore for MemoryStore {
 
 fn handle_mutex_err<'a, T>(err: PoisonError<MutexGuard<'a, T>>) -> MutexGuard<'a, T> {
     error!("Mutex poisoned");
-    err.into_inner()
-}
-
-fn handle_read_err<'a, T>(err: PoisonError<RwLockReadGuard<'a, T>>) -> RwLockReadGuard<'a, T> {
-    error!("Read lock poisoned");
-    err.into_inner()
-}
-
-fn handle_write_err<'a, T>(err: PoisonError<RwLockWriteGuard<'a, T>>) -> RwLockWriteGuard<'a, T> {
-    error!("Write lock poisoned");
     err.into_inner()
 }
 
