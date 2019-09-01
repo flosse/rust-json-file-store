@@ -20,6 +20,7 @@ serde_json = "1"
 
 [dev-dependencies]
 serde_derive = { version = "1" }
+tempdir = "0.3"
 
 [badges]
 travis-ci = { repository = "flosse/rust-json-file-store" }
