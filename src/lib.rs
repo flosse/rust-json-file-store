@@ -1,7 +1,7 @@
-// Copyright (c) 2016 - 2019 Markus Kohlhase <mail@markus-kohlhase.de>
+// Copyright (c) 2016 - 2020 Markus Kohlhase <mail@markus-kohlhase.de>
 
 //! A simple JSON file store written in Rust.
-//! This is a port and drop-in replacement of the Node.js library
+//! This is a port of the Node.js library
 //! [json-file-store](https://github.com/flosse/json-file-store/).
 //!
 //! **WARNING**:

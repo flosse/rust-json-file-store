@@ -2,11 +2,12 @@
 name = "jfs"
 version = "0.6.2"
 authors = ["Markus Kohlhase <mail@markus-kohlhase.de>"]
-license = "MIT"
+license = "MIT/Apache-2.0"
 homepage = "https://github.com/flosse/rust-json-file-store"
 repository = "https://github.com/flosse/rust-json-file-store"
 documentation = "https://docs.rs/crate/jfs/"
 description = "A JSON file store"
+readme = "README.md"
 keywords = ["json", "file", "store", "db", "database"]
 categories = ["database"]
 edition = "2018"
