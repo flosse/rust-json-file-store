@@ -1,7 +1,9 @@
 ## v0.7.0 (unreleased)
 
 - Change License to MIT/Apache 2.0
-- use uuid v0.8.x
+- Use `uuid` v0.8.x
+- Switch to 2021 edition
+- Use `usize` for `indent` configuration
 
 ## v0.6.2 (2019-09-01)
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 - 2020 Markus Kohlhase <mail@markus-kohlhase.de>
+// Copyright (c) 2016 - 2021 Markus Kohlhase <mail@markus-kohlhase.de>
 
 //! A simple JSON file store written in Rust.
 //! This is a port of the Node.js library
@@ -11,9 +11,7 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! extern crate jfs;
-//! #[macro_use]
-//! extern crate serde_derive;
+//! use serde::{Serialize,Deserialize};
 //! use jfs::Store;
 //!
 //! #[derive(Serialize,Deserialize)]
@@ -21,13 +19,11 @@
 //!     foo: String
 //! }
 //!
-//! pub fn main() {
-//!     let db = Store::new("data").unwrap();
-//!     let f = Foo { foo: "bar".to_owned() };
-//!     let id = db.save(&f).unwrap();
-//!     let obj = db.get::<Foo>(&id).unwrap();
-//!     db.delete(&id).unwrap();
-//! }
+//! let db = Store::new("data").unwrap();
+//! let f = Foo { foo: "bar".to_owned() };
+//! let id = db.save(&f).unwrap();
+//! let obj = db.get::<Foo>(&id).unwrap();
+//! db.delete(&id).unwrap();
 //! ```
 //!
 //! You can also store all data in one single JSON-File:

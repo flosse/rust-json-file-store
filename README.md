@@ -14,54 +14,13 @@ This is a port of the Node.js library
 Don't use it if you want to persist a large amount of objects.
 Use a real DB instead.
 
-## Example
+## Documentation
 
-```rust
-extern crate jfs;
-#[macro_use]
-extern crate serde_derive;
-use jfs::Store;
-
-#[derive(Serialize,Deserialize)]
-struct Foo {
-    foo: String
-}
-
-pub fn main() {
-    let db = Store::new("data").unwrap();
-    let f = Foo { foo: "bar".to_owned() };
-    let id = db.save(&f).unwrap();
-    let obj = db.get::<Foo>(&id).unwrap();
-    db.delete(&id).unwrap();
-}
-```
-
-You can also store all data in one single JSON-File:
-
-```rust
-let mut cfg = jfs::Config::default();
-cfg.single = true; // false is default
-let db = jfs::Store::new_with_cfg("data",cfg);
-```
-
-If you like to pretty print the file content, set `pretty` to `true`
-and choose a number of whitespaces for the indention:
-
-```rust
-let mut cfg = jfs::Config::default();
-cfg.pretty = true;  // false is default
-cfg.indent = 4;     // 2 is default
-```
-
-Creating a store instance that is living in the memory can be done like this:
-
-```rust
-let db = jfs::Store::new(jfs::IN_MEMORY).unwrap();
-```
+See [docs.rs/jfs](https://docs.rs/jfs/).
 
 ## License
 
-Copyright (c) 2016 - 2020 Markus Kohlhase
+Copyright (c) 2016 - 2021 Markus Kohlhase
 
 This library is licensed under either of
 

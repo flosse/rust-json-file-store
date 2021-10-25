@@ -238,13 +238,7 @@ mod tests {
         struct X {
             x: u32,
             y: u32,
-        };
-        #[cfg(feature = "rustc-serialize")]
-        #[derive(RustcEncodable, RustcDecodable)]
-        struct X {
-            x: u32,
-            y: u32,
-        };
+        }
         db.mem.write().unwrap().insert(
             "foo".to_string(),
             Mutex::new("{\"x\":1,\"y\":0}".to_string()),

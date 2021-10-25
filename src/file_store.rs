@@ -216,7 +216,7 @@ impl FileStore {
             .read(true)
             .write(false)
             .create(false)
-            .open(&file_name)?;
+            .open(file_name)?;
         let mut buffer = String::new();
         f.lock_shared()?;
         f.read_to_string(&mut buffer)?;
@@ -404,13 +404,13 @@ mod tests {
             #[derive(Deserialize, Serialize)]
             struct SubStruct {
                 c: u32,
-            };
+            }
 
             #[derive(Deserialize, Serialize)]
             struct MyData {
                 a: String,
                 b: SubStruct,
-            };
+            }
 
             let data = MyData {
                 a: "foo".to_string(),
@@ -454,13 +454,7 @@ mod tests {
             struct X {
                 x: u32,
                 y: u32,
-            };
-            #[cfg(feature = "rustc-serialize")]
-            #[derive(RustcEncodable, RustcDecodable)]
-            struct X {
-                x: u32,
-                y: u32,
-            };
+            }
 
             let mut file = File::create(dir.join("foo.json")).unwrap();
             Write::write_all(&mut file, b"{\"x\":1, \"y\":0}").unwrap();
