@@ -77,7 +77,7 @@ impl JsonStore for MemoryStore {
     }
 }
 
-fn handle_mutex_err<'a, T>(err: PoisonError<MutexGuard<'a, T>>) -> MutexGuard<'a, T> {
+fn handle_mutex_err<T>(err: PoisonError<MutexGuard<T>>) -> MutexGuard<T> {
     error!("Mutex poisoned");
     err.into_inner()
 }

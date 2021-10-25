@@ -159,10 +159,7 @@ impl FileStore {
     }
 
     fn to_writer_pretty<W: Write, T: Serialize>(&self, writer: &mut W, value: &T) -> Result<()> {
-        let mut indent: Vec<char> = vec![];
-        for _ in 0..self.cfg.indent {
-            indent.push(' ');
-        }
+        let indent = vec![' '; self.cfg.indent as usize];
         let b = indent.into_iter().collect::<String>().into_bytes();
         let mut s = Serializer::with_formatter(writer, PrettyFormatter::with_indent(&b));
         value
@@ -186,9 +183,9 @@ impl FileStore {
         }
     }
 
-    fn save_object_to_file<T: Serialize>(&self, obj: &T, file_name: &PathBuf) -> Result<()> {
+    fn save_object_to_file<T: Serialize>(&self, obj: &T, file_name: &Path) -> Result<()> {
         let json_string = self.object_to_string(obj)?;
-        let mut tmp_filename = file_name.clone();
+        let mut tmp_filename = file_name.to_path_buf();
         tmp_filename.set_file_name(&Uuid::new_v4().to_string());
         tmp_filename.set_extension("tmp");
         let file = OpenOptions::new()
@@ -214,7 +211,7 @@ impl FileStore {
         }
     }
 
-    fn get_string_from_file(file_name: &PathBuf) -> Result<String> {
+    fn get_string_from_file(file_name: &Path) -> Result<String> {
         let mut f = OpenOptions::new()
             .read(true)
             .write(false)
@@ -227,7 +224,7 @@ impl FileStore {
         Ok(buffer)
     }
 
-    fn get_json_from_file(file_name: &PathBuf) -> Result<Value> {
+    fn get_json_from_file(file_name: &Path) -> Result<Value> {
         let s = FileStore::get_string_from_file(file_name)?;
         serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
     }

@@ -176,12 +176,12 @@ impl Store {
     }
 }
 
-fn handle_write_err<'a, T>(err: PoisonError<RwLockWriteGuard<'a, T>>) -> RwLockWriteGuard<'a, T> {
+fn handle_write_err<T>(err: PoisonError<RwLockWriteGuard<T>>) -> RwLockWriteGuard<T> {
     error!("Write lock poisoned");
     err.into_inner()
 }
 
-fn handle_read_err<'a, T>(err: PoisonError<RwLockReadGuard<'a, T>>) -> RwLockReadGuard<'a, T> {
+fn handle_read_err<T>(err: PoisonError<RwLockReadGuard<T>>) -> RwLockReadGuard<T> {
     error!("Read lock poisoned");
     err.into_inner()
 }

@@ -10,7 +10,7 @@ description = "A JSON file store"
 readme = "README.md"
 keywords = ["json", "file", "store", "db", "database"]
 categories = ["database"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 log = "0.4"
