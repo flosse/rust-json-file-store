@@ -22,7 +22,7 @@ type Object = Map<String, Value>;
 #[derive(Clone, Copy)]
 pub struct Config {
     pub pretty: bool,
-    pub indent: u32,
+    pub indent: usize,
     pub single: bool,
 }
 
@@ -159,7 +159,7 @@ impl FileStore {
     }
 
     fn to_writer_pretty<W: Write, T: Serialize>(&self, writer: &mut W, value: &T) -> Result<()> {
-        let indent = vec![' '; self.cfg.indent as usize];
+        let indent = vec![' '; self.cfg.indent];
         let b = indent.into_iter().collect::<String>().into_bytes();
         let mut s = Serializer::with_formatter(writer, PrettyFormatter::with_indent(&b));
         value
