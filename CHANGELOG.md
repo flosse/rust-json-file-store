@@ -1,4 +1,4 @@
-## v0.7.0 (unreleased)
+## v0.7.0 (2021-10-25)
 
 - Change License to MIT/Apache 2.0
 - Use `uuid` v0.8.x
