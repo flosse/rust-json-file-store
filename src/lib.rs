@@ -68,10 +68,10 @@ use memory_store::MemoryStore;
 
 pub use file_store::Config;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Store(StoreType);
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum StoreType {
     File(Arc<RwLock<FileStore>>, PathBuf),
     Memory(MemoryStore),

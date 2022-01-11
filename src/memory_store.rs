@@ -8,7 +8,7 @@ use std::{
 };
 use uuid::Uuid;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct MemoryStore {
     mem: Arc<RwLock<HashMap<String, Mutex<String>>>>,
 }

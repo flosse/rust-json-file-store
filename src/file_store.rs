@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 type Object = Map<String, Value>;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Config {
     pub pretty: bool,
     pub indent: usize,
@@ -36,7 +36,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FileStore {
     path: PathBuf,
     cfg: Config,
