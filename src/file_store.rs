@@ -200,13 +200,14 @@ impl FileStore {
             .open(&tmp_filename)?;
         file.lock_exclusive()?;
         tmp_file.lock_exclusive()?;
-
         match Write::write_all(&mut tmp_file, json_string.as_bytes()) {
             Err(err) => Err(err),
             Ok(_) => {
-                rename(tmp_filename, file_name)?;
                 tmp_file.unlock()?;
-                file.unlock()
+                file.unlock()?;
+                drop(file);
+                drop(tmp_file);
+                rename(tmp_filename, file_name)
             }
         }
     }
