@@ -1,0 +1,67 @@
+name: Continuous integration
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner_os }}
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - x86_64-pc-windows-msvc
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner_os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            runner_os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            runner_os: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with:
+          command: generate-lockfile
+
+      - name: Build tests with all features enabled
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --locked --all-features --no-run
+
+      - name: Run tests with all features enabled
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --locked --all-features -- --nocapture --quiet
+
+      - name: Build workspace documentation with all features enabled
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --workspace --locked --all-features
+
+      - name: Build release with default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --locked --profile release
