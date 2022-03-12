@@ -20,7 +20,7 @@ See [docs.rs/jfs](https://docs.rs/jfs/).
 
 ## License
 
-Copyright (c) 2016 - 2021 Markus Kohlhase
+Copyright (c) 2016 - 2022 Markus Kohlhase
 
 This library is licensed under either of
 

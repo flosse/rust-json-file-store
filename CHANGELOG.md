@@ -1,3 +1,8 @@
+## v0.7.1 (2022-03-13)
+
+- Fix Access denied issue on windows
+- Derive debug trait for public structs
+
 ## v0.7.0 (2021-10-25)
 
 - Change License to MIT/Apache 2.0

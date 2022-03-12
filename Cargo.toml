@@ -1,6 +1,6 @@
 [package]
 name = "jfs"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Markus Kohlhase <mail@markus-kohlhase.de>"]
 license = "MIT/Apache-2.0"
 homepage = "https://github.com/flosse/rust-json-file-store"
