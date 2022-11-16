@@ -1,3 +1,7 @@
+## v0.8.0 (2022-11-16)
+
+- Update `uuid` to v1.x
+
 ## v0.7.1 (2022-03-13)
 
 - Fix Access denied issue on windows

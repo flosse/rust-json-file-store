@@ -58,7 +58,7 @@ impl JsonStore for FileStore {
             let json = FileStore::get_json_from_file(&self.path)?;
             let o = FileStore::get_object_from_json(&json)?;
             let mut x = o.clone();
-            let j = serde_json::to_value(&obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
+            let j = serde_json::to_value(obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
             x.insert(id.to_string(), j);
             self.save_object_to_file(&x, &self.path)?;
         } else {
@@ -192,7 +192,7 @@ impl FileStore {
             .write(true)
             .create(true)
             .truncate(false)
-            .open(&file_name)?;
+            .open(file_name)?;
         let mut tmp_file = OpenOptions::new()
             .write(true)
             .create(true)
