@@ -1,3 +1,8 @@
+## v0.9.0 (2023-03-13)
+
+- use `parking_lot`
+- use `tempfile`
+
 ## v0.8.0 (2022-11-16)
 
 - Update `uuid` to v1.x
