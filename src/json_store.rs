@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, io::Result};
 
-pub(crate) trait JsonStore: Send + Sync {
+pub trait JsonStore: Send + Sync {
     fn save<T>(&self, obj: &T) -> Result<String>
     where
         for<'de> T: Serialize + Deserialize<'de>;

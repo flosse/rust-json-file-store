@@ -34,7 +34,7 @@ impl JsonStore for MemoryStore {
         }
         drop(map);
         let mut map = self.mem.write();
-        map.insert(id.to_string(), Mutex::new(json));
+        map.insert(id.to_owned(), Mutex::new(json));
         Ok(id.to_owned())
     }
 

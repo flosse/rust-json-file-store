@@ -27,8 +27,8 @@ pub struct Config {
 }
 
 impl Default for Config {
-    fn default() -> Config {
-        Config {
+    fn default() -> Self {
+        Self {
             indent: 2,
             pretty: false,
             single: false,
@@ -55,11 +55,11 @@ impl JsonStore for FileStore {
         for<'de> T: Serialize + Deserialize<'de>,
     {
         if self.cfg.single {
-            let json = FileStore::get_json_from_file(&self.path)?;
-            let o = FileStore::get_object_from_json(&json)?;
+            let json = get_json_from_file(&self.path)?;
+            let o = get_object_from_json(&json)?;
             let mut x = o.clone();
             let j = serde_json::to_value(obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
-            x.insert(id.to_string(), j);
+            x.insert(id.to_owned(), j);
             self.save_object_to_file(&x, &self.path)?;
         } else {
             self.save_object_to_file(obj, &self.id_to_path(id))?;
@@ -71,7 +71,7 @@ impl JsonStore for FileStore {
     where
         for<'de> T: Deserialize<'de>,
     {
-        let json = FileStore::get_json_from_file(&self.id_to_path(id))?;
+        let json = get_json_from_file(&self.id_to_path(id))?;
         let o = if self.cfg.single {
             let x = json
                 .get(id)
@@ -80,7 +80,7 @@ impl JsonStore for FileStore {
         } else {
             json
         };
-        Self::decode(o)
+        decode(o)
     }
 
     fn all<T>(&self) -> Result<BTreeMap<String, T>>
@@ -88,12 +88,12 @@ impl JsonStore for FileStore {
         for<'de> T: Deserialize<'de>,
     {
         if self.cfg.single {
-            let json = FileStore::get_json_from_file(&self.id_to_path(""))?;
-            let o = FileStore::get_object_from_json(&json)?;
+            let json = get_json_from_file(&self.id_to_path(""))?;
+            let o = get_object_from_json(&json)?;
             let mut result = BTreeMap::new();
             for x in o.iter() {
                 let (k, v) = x;
-                if let Ok(r) = Self::decode(v.clone()) {
+                if let Ok(r) = decode(v.clone()) {
                     result.insert(k.clone(), r);
                 }
             }
@@ -109,7 +109,7 @@ impl JsonStore for FileStore {
                 e.and_then(|x| {
                     x.metadata().and_then(|m| {
                         if m.is_file() {
-                            self.path_buf_to_id(x.path())
+                            path_buf_to_id(&x.path())
                         } else {
                             Err(Error::new(ErrorKind::Other, "not a file"))
                         }
@@ -117,9 +117,9 @@ impl JsonStore for FileStore {
                 })
                 .ok()
             })
-            .filter_map(|id| match self.get(&id) {
-                Ok(x) => Some((id.clone(), x)),
-                _ => None,
+            .filter_map(|id| {
+                self.get(&id)
+                    .map_or_else(|_| None, |x| Some((id.clone(), x)))
             })
             .collect::<BTreeMap<String, T>>();
 
@@ -128,8 +128,8 @@ impl JsonStore for FileStore {
 
     fn delete(&self, id: &str) -> Result<()> {
         if self.cfg.single {
-            let json = FileStore::get_json_from_file(&self.path)?;
-            let o = FileStore::get_object_from_json(&json)?;
+            let json = get_json_from_file(&self.path)?;
+            let o = get_object_from_json(&json)?;
             let mut x = o.clone();
             if x.contains_key(id) {
                 x.remove(id);
@@ -150,12 +150,6 @@ impl FileStore {
         } else {
             self.path.join(id).with_extension("json")
         }
-    }
-
-    fn path_buf_to_id(&self, p: PathBuf) -> Result<String> {
-        p.file_stem()
-            .and_then(|n| n.to_os_string().into_string().ok())
-            .ok_or_else(|| Error::new(ErrorKind::Other, "invalid id"))
     }
 
     fn to_writer_pretty<W: Write, T: Serialize>(&self, writer: &mut W, value: &T) -> Result<()> {
@@ -200,48 +194,25 @@ impl FileStore {
             .open(&tmp_filename)?;
         file.lock_exclusive()?;
         tmp_file.lock_exclusive()?;
-        match Write::write_all(&mut tmp_file, json_string.as_bytes()) {
-            Err(err) => Err(err),
-            Ok(_) => {
-                tmp_file.unlock()?;
-                file.unlock()?;
-                drop(file);
-                drop(tmp_file);
-                rename(tmp_filename, file_name)
-            }
+
+        if let Err(err) = Write::write_all(&mut tmp_file, json_string.as_bytes()) {
+            Err(err)
+        } else {
+            tmp_file.unlock()?;
+            file.unlock()?;
+            drop(file);
+            drop(tmp_file);
+            rename(tmp_filename, file_name)
         }
     }
 
-    fn get_string_from_file(file_name: &Path) -> Result<String> {
-        let mut f = OpenOptions::new()
-            .read(true)
-            .write(false)
-            .create(false)
-            .open(file_name)?;
-        let mut buffer = String::new();
-        f.lock_shared()?;
-        f.read_to_string(&mut buffer)?;
-        f.unlock()?;
-        Ok(buffer)
-    }
-
-    fn get_json_from_file(file_name: &Path) -> Result<Value> {
-        let s = FileStore::get_string_from_file(file_name)?;
-        serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
-    }
-
-    fn get_object_from_json(json: &Value) -> Result<&Object> {
-        json.as_object()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid file content"))
-    }
-
     #[cfg(test)]
-    fn new<P: AsRef<Path>>(path: P) -> Result<FileStore> {
+    fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         FileStore::new_with_cfg(path, Config::default())
     }
 
-    pub fn new_with_cfg<P: AsRef<Path>>(path: P, cfg: Config) -> Result<FileStore> {
-        let mut s = FileStore {
+    pub fn new_with_cfg<P: AsRef<Path>>(path: P, cfg: Config) -> Result<Self> {
+        let mut s = Self {
             path: path.as_ref().to_path_buf(), // TODO: probably change this to take an owned PathBuf parameter
             cfg,
         };
@@ -252,7 +223,9 @@ impl FileStore {
                 let o = Object::new();
                 s.save_object_to_file(&o, &s.path)?;
             }
-        } else if let Err(err) = create_dir_all(&s.path) {
+            return Ok(s);
+        }
+        if let Err(err) = create_dir_all(&s.path) {
             if err.kind() != ErrorKind::AlreadyExists {
                 return Err(err);
             }
@@ -267,13 +240,42 @@ impl FileStore {
     pub fn path(&self) -> &Path {
         &self.path
     }
+}
 
-    fn decode<T>(o: Value) -> Result<T>
-    where
-        for<'de> T: Deserialize<'de>,
-    {
-        serde_json::from_value(o).map_err(|err| Error::new(ErrorKind::Other, err))
-    }
+fn decode<T>(o: Value) -> Result<T>
+where
+    for<'de> T: Deserialize<'de>,
+{
+    serde_json::from_value(o).map_err(|err| Error::new(ErrorKind::Other, err))
+}
+
+fn get_string_from_file(file_name: &Path) -> Result<String> {
+    let mut f = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .create(false)
+        .open(file_name)?;
+    let mut buffer = String::new();
+    f.lock_shared()?;
+    f.read_to_string(&mut buffer)?;
+    f.unlock()?;
+    Ok(buffer)
+}
+
+fn get_json_from_file(file_name: &Path) -> Result<Value> {
+    let s = get_string_from_file(file_name)?;
+    serde_json::from_str(&s).map_err(|err| Error::new(ErrorKind::Other, err))
+}
+
+fn get_object_from_json(json: &Value) -> Result<&Object> {
+    json.as_object()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid file content"))
+}
+
+fn path_buf_to_id(p: &Path) -> Result<String> {
+    p.file_stem()
+        .and_then(|n| n.to_os_string().into_string().ok())
+        .ok_or_else(|| Error::new(ErrorKind::Other, "invalid id"))
 }
 
 #[cfg(test)]

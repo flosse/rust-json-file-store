@@ -85,7 +85,7 @@ impl Store {
     ///
     /// * `path` - path to the db directory of JSON documents
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        Store::new_with_cfg(path, Config::default())
+        Self::new_with_cfg(path, Config::default())
     }
 
     /// Opens a `Store` against the specified path with the given configuration
@@ -109,8 +109,9 @@ impl Store {
 
     /// Returns the storage path for the backing JSON store.
     ///
-    /// In single-file-mode this will be the JSON file location, otherwise it's
-    ///  the directory in which all JSON objects are stored.
+    /// In single-file-mode this will be the JSON file location,
+    /// otherwise it's the directory in which all JSON objects are stored.
+    #[must_use]
     pub fn path(&self) -> &Path {
         match &self.0 {
             StoreType::File(_, p) => p,
