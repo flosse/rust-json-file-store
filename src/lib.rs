@@ -186,7 +186,7 @@ mod tests {
     use super::*;
     use serde_derive::{Deserialize, Serialize};
     use std::thread;
-    use tempdir::TempDir;
+    use tempfile::tempdir;
 
     #[derive(Serialize, Deserialize)]
     struct Data {
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn multi_threaded_write_with_single_file() {
-        let dir = TempDir::new("test").expect("Could not create temporary directory");
+        let dir = tempdir().expect("Could not create temporary directory");
         let file = dir.path().join("db.json");
         let mut cfg = Config::default();
         cfg.single = true;
@@ -228,7 +228,7 @@ mod tests {
         struct Data {
             x: i32,
         }
-        let dir = TempDir::new("test").expect("Could not create temporary directory");
+        let dir = tempdir().expect("Could not create temporary directory");
         let mut cfg = Config::default();
         cfg.single = false;
         let store = Store::new_with_cfg(dir.path(), cfg).unwrap();

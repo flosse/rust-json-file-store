@@ -281,7 +281,7 @@ mod tests {
     use super::*;
     use serde_derive::{Deserialize, Serialize};
     use std::{collections::BTreeMap, fs::File, io::ErrorKind, path::Path, thread};
-    use tempdir::TempDir;
+    use tempfile::tempdir;
 
     #[derive(Serialize, Deserialize)]
     struct X {
@@ -320,7 +320,7 @@ mod tests {
         #[test]
         fn new_multi_threaded() {
             let mut threads: Vec<thread::JoinHandle<()>> = vec![];
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let path = dir.path().to_path_buf();
             for _ in 0..20 {
                 let d = path.clone();
@@ -335,7 +335,7 @@ mod tests {
 
         #[test]
         fn save() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let db = FileStore::new(&dir).unwrap();
             let data = X { x: 56 };
             let id = db.save(&data).unwrap();
@@ -347,7 +347,7 @@ mod tests {
 
         #[test]
         fn save_and_read_multi_threaded() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
             let mut threads: Vec<thread::JoinHandle<()>> = vec![];
             let x = X { x: 56 };
@@ -374,7 +374,7 @@ mod tests {
 
         #[test]
         fn save_empty_obj() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
             let id = db.save(&Empty {}).unwrap();
             let mut f = File::open(dir.join(id).with_extension("json")).unwrap();
@@ -385,7 +385,7 @@ mod tests {
 
         #[test]
         fn save_with_id() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
             let data = Y { y: -7 };
             db.save_with_id(&data, "foo").unwrap();
@@ -397,7 +397,7 @@ mod tests {
 
         #[test]
         fn pretty_print_file_content() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let mut cfg = Config::default();
             cfg.pretty = true;
             let db = FileStore::new_with_cfg(&dir, cfg).unwrap();
@@ -428,7 +428,7 @@ mod tests {
 
         #[test]
         fn get() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
             let mut file = File::create(dir.join("foo.json")).unwrap();
             Write::write_all(&mut file, b"{\"z\":9.9}").unwrap();
@@ -438,7 +438,7 @@ mod tests {
 
         #[test]
         fn get_non_existent() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
             let res = db.get::<X>("foobarobject");
             assert!(res.is_err());
@@ -447,7 +447,7 @@ mod tests {
 
         #[test]
         fn all() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
 
             #[cfg(feature = "serde_json")]
@@ -472,7 +472,7 @@ mod tests {
 
         #[test]
         fn delete() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let db = FileStore::new(&dir).unwrap();
             let data = Y { y: 88 };
             let id = db.save(&data).unwrap();
@@ -487,7 +487,7 @@ mod tests {
 
         #[test]
         fn delete_non_existent() {
-            let dir = TempDir::new("tests").unwrap().path().to_path_buf();
+            let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
             let res = db.delete("blabla");
             assert!(res.is_err());
@@ -496,7 +496,7 @@ mod tests {
 
         #[test]
         fn single_new_multi_threaded() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -515,7 +515,7 @@ mod tests {
 
         #[test]
         fn single_save() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -533,7 +533,7 @@ mod tests {
 
         #[test]
         fn single_save_and_read_multi_threaded() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -565,7 +565,7 @@ mod tests {
 
         #[test]
         fn single_save_without_file_name_ext() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let subdir = dir.path().join("test");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -575,7 +575,7 @@ mod tests {
 
         #[test]
         fn single_get() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -587,7 +587,7 @@ mod tests {
 
         #[test]
         fn single_get_non_existent() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -599,7 +599,7 @@ mod tests {
 
         #[test]
         fn single_all() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -612,7 +612,7 @@ mod tests {
 
         #[test]
         fn single_delete() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
@@ -626,7 +626,7 @@ mod tests {
 
         #[test]
         fn single_delete_non_existent() {
-            let dir = TempDir::new("tests").unwrap();
+            let dir = tempdir().unwrap();
             let file_name = dir.path().join("test.json");
             let mut cfg = Config::default();
             cfg.single = true;
