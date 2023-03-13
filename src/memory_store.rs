@@ -1,10 +1,10 @@
-use crate::{handle_read_err, handle_write_err, json_store::JsonStore};
-use log::error;
+use crate::json_store::JsonStore;
+use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     io::{Error, ErrorKind, Result},
-    sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock},
+    sync::Arc,
 };
 use uuid::Uuid;
 
@@ -26,14 +26,14 @@ impl JsonStore for MemoryStore {
         for<'de> T: Serialize + Deserialize<'de>,
     {
         let json = serde_json::to_string(&obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
-        let map = self.mem.read().unwrap_or_else(handle_read_err);
+        let map = self.mem.read();
         if let Some(val) = map.get(id) {
-            let mut value_guard = val.lock().unwrap_or_else(handle_mutex_err);
+            let mut value_guard = val.lock();
             *value_guard = json;
             return Ok(id.to_owned());
         }
         drop(map);
-        let mut map = self.mem.write().unwrap_or_else(handle_write_err);
+        let mut map = self.mem.write();
         map.insert(id.to_string(), Mutex::new(json));
         Ok(id.to_owned())
     }
@@ -42,11 +42,11 @@ impl JsonStore for MemoryStore {
     where
         for<'de> T: Deserialize<'de>,
     {
-        let map = self.mem.read().unwrap_or_else(handle_read_err);
+        let map = self.mem.read();
         let value = map
             .get(id)
             .ok_or_else(|| Error::new(ErrorKind::NotFound, "no such object"))?;
-        let value_guard = value.lock().unwrap_or_else(handle_mutex_err);
+        let value_guard = value.lock();
         serde_json::from_str(&value_guard).map_err(|err| Error::new(ErrorKind::Other, err))
     }
 
@@ -55,10 +55,10 @@ impl JsonStore for MemoryStore {
         for<'de> T: Deserialize<'de>,
     {
         let mut result = BTreeMap::new();
-        let map = self.mem.read().unwrap_or_else(handle_read_err);
+        let map = self.mem.read();
         for x in map.iter() {
             let (k, v) = x;
-            let value_guard = v.lock().unwrap_or_else(handle_mutex_err);
+            let value_guard = v.lock();
             if let Ok(r) = serde_json::from_str(&value_guard) {
                 result.insert(k.clone(), r);
             }
@@ -67,7 +67,7 @@ impl JsonStore for MemoryStore {
     }
 
     fn delete(&self, id: &str) -> Result<()> {
-        let mut map = self.mem.write().unwrap_or_else(handle_write_err);
+        let mut map = self.mem.write();
         if map.contains_key(id) {
             map.remove(id);
         } else {
@@ -75,11 +75,6 @@ impl JsonStore for MemoryStore {
         }
         Ok(())
     }
-}
-
-fn handle_mutex_err<T>(err: PoisonError<MutexGuard<T>>) -> MutexGuard<T> {
-    error!("Mutex poisoned");
-    err.into_inner()
 }
 
 #[cfg(test)]
@@ -111,16 +106,8 @@ mod tests {
         let db = MemoryStore::default();
         let data = X { x: 56 };
         let id = db.save(&data).unwrap();
-        assert_eq!(db.mem.read().unwrap().len(), 1);
-        let json = db
-            .mem
-            .read()
-            .unwrap()
-            .get(&id)
-            .unwrap()
-            .lock()
-            .unwrap()
-            .clone();
+        assert_eq!(db.mem.read().len(), 1);
+        let json = db.mem.read().get(&id).unwrap().lock().clone();
         assert_eq!(json, "{\"x\":56}");
     }
 
@@ -129,27 +116,11 @@ mod tests {
         let db = MemoryStore::default();
         let mut data = X { x: 56 };
         let id = db.save(&data).unwrap();
-        let json = db
-            .mem
-            .read()
-            .unwrap()
-            .get(&id)
-            .unwrap()
-            .lock()
-            .unwrap()
-            .clone();
+        let json = db.mem.read().get(&id).unwrap().lock().clone();
         assert_eq!(json, "{\"x\":56}");
         data.x += 1;
         db.save_with_id(&data, &id).unwrap();
-        let json = db
-            .mem
-            .read()
-            .unwrap()
-            .get(&id)
-            .unwrap()
-            .lock()
-            .unwrap()
-            .clone();
+        let json = db.mem.read().get(&id).unwrap().lock().clone();
         assert_eq!(json, "{\"x\":57}");
     }
 
@@ -181,15 +152,7 @@ mod tests {
     fn save_empty_obj() {
         let db = MemoryStore::default();
         let id = db.save(&Empty {}).unwrap();
-        let json = db
-            .mem
-            .read()
-            .unwrap()
-            .get(&id)
-            .unwrap()
-            .lock()
-            .unwrap()
-            .clone();
+        let json = db.mem.read().get(&id).unwrap().lock().clone();
         assert_eq!(json, "{}");
     }
 
@@ -198,15 +161,7 @@ mod tests {
         let db = MemoryStore::default();
         let data = Y { y: -7 };
         db.save_with_id(&data, "foo").unwrap();
-        let json = db
-            .mem
-            .read()
-            .unwrap()
-            .get("foo")
-            .unwrap()
-            .lock()
-            .unwrap()
-            .clone();
+        let json = db.mem.read().get("foo").unwrap().lock().clone();
         assert_eq!(json, "{\"y\":-7}");
     }
 
@@ -215,7 +170,6 @@ mod tests {
         let db = MemoryStore::default();
         db.mem
             .write()
-            .unwrap()
             .insert("foo".to_string(), Mutex::new("{\"z\":9.9}".to_string()));
         let obj: Z = db.get("foo").unwrap();
         assert_eq!(obj.z, 9.9);
@@ -239,13 +193,12 @@ mod tests {
             x: u32,
             y: u32,
         }
-        db.mem.write().unwrap().insert(
+        db.mem.write().insert(
             "foo".to_string(),
             Mutex::new("{\"x\":1,\"y\":0}".to_string()),
         );
         db.mem
             .write()
-            .unwrap()
             .insert("bar".to_string(), Mutex::new("{\"y\":2}".to_string()));
 
         let all_x: BTreeMap<String, X> = db.all().unwrap();
@@ -261,9 +214,9 @@ mod tests {
         let data = Y { y: 88 };
         let id = db.save(&data).unwrap();
         db.get::<Y>(&id).unwrap();
-        assert_eq!(db.mem.read().unwrap().len(), 1);
+        assert_eq!(db.mem.read().len(), 1);
         db.delete(&id).unwrap();
-        assert_eq!(db.mem.read().unwrap().len(), 0);
+        assert_eq!(db.mem.read().len(), 0);
         assert!(db.get::<Y>(&id).is_err());
         assert!(db.delete(&id).is_err());
     }

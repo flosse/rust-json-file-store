@@ -46,14 +46,13 @@
 //! ```rust,no_run
 //! let db = jfs::Store::new(jfs::IN_MEMORY).unwrap();
 //! ```
-
-use log::error;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     io::Result,
     path::{Path, PathBuf},
-    sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::Arc,
 };
 
 mod file_store;
@@ -124,7 +123,7 @@ impl Store {
         for<'de> T: Serialize + Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f, _) => f.write().unwrap_or_else(handle_write_err).save(obj),
+            StoreType::File(f, _) => f.write().save(obj),
             StoreType::Memory(m) => m.save(obj),
         }
     }
@@ -134,10 +133,7 @@ impl Store {
         for<'de> T: Serialize + Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f, _) => f
-                .write()
-                .unwrap_or_else(handle_write_err)
-                .save_with_id(obj, id),
+            StoreType::File(f, _) => f.write().save_with_id(obj, id),
             StoreType::Memory(m) => m.save_with_id(obj, id),
         }
     }
@@ -147,7 +143,7 @@ impl Store {
         for<'de> T: Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f, _) => f.read().unwrap_or_else(handle_read_err).get(id),
+            StoreType::File(f, _) => f.read().get(id),
             StoreType::Memory(m) => m.get(id),
         }
     }
@@ -157,27 +153,17 @@ impl Store {
         for<'de> T: Deserialize<'de>,
     {
         match &self.0 {
-            StoreType::File(f, _) => f.read().unwrap_or_else(handle_read_err).all(),
+            StoreType::File(f, _) => f.read().all(),
             StoreType::Memory(m) => m.all(),
         }
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
         match &self.0 {
-            StoreType::File(f, _) => f.write().unwrap_or_else(handle_write_err).delete(id),
+            StoreType::File(f, _) => f.write().delete(id),
             StoreType::Memory(m) => m.delete(id),
         }
     }
-}
-
-fn handle_write_err<T>(err: PoisonError<RwLockWriteGuard<T>>) -> RwLockWriteGuard<T> {
-    error!("Write lock poisoned");
-    err.into_inner()
-}
-
-fn handle_read_err<T>(err: PoisonError<RwLockReadGuard<T>>) -> RwLockReadGuard<T> {
-    error!("Read lock poisoned");
-    err.into_inner()
 }
 
 #[cfg(test)]
