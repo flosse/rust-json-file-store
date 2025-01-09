@@ -1,4 +1,12 @@
-use crate::json_store::JsonStore;
+use std::{
+    collections::BTreeMap,
+    fs::{create_dir_all, metadata, read_dir, remove_file, rename, OpenOptions},
+    io::{
+        Read, Write, {Error, ErrorKind, Result},
+    },
+    path::{Path, PathBuf},
+};
+
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{
@@ -6,16 +14,9 @@ use serde_json::{
     value::Map,
     Value,
 };
-use std::{
-    collections::BTreeMap,
-    fs::{create_dir_all, metadata, read_dir, remove_file, rename, OpenOptions},
-    io::{
-        prelude::*,
-        {Error, ErrorKind, Result},
-    },
-    path::{Path, PathBuf},
-};
 use uuid::Uuid;
+
+use crate::json_store::JsonStore;
 
 type Object = Map<String, Value>;
 
@@ -47,7 +48,8 @@ impl JsonStore for FileStore {
     where
         for<'de> T: Serialize + Deserialize<'de>,
     {
-        self.save_with_id(obj, &Uuid::new_v4().to_string())
+        let id = Uuid::new_v4().to_string();
+        self.save_with_id(obj, &id)
     }
 
     fn save_with_id<T>(&self, obj: &T, id: &str) -> Result<String>
@@ -56,10 +58,11 @@ impl JsonStore for FileStore {
     {
         if self.cfg.single {
             let json = get_json_from_file(&self.path)?;
-            let o = get_object_from_json(&json)?;
-            let mut x = o.clone();
-            let j = serde_json::to_value(obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
-            x.insert(id.to_owned(), j);
+            let object = get_object_from_json(&json)?;
+            let mut x = object.clone();
+            let json =
+                serde_json::to_value(obj).map_err(|err| Error::new(ErrorKind::Other, err))?;
+            x.insert(id.to_owned(), json);
             self.save_object_to_file(&x, &self.path)?;
         } else {
             self.save_object_to_file(obj, &self.id_to_path(id))?;
@@ -72,7 +75,7 @@ impl JsonStore for FileStore {
         for<'de> T: Deserialize<'de>,
     {
         let json = get_json_from_file(&self.id_to_path(id))?;
-        let o = if self.cfg.single {
+        let object = if self.cfg.single {
             let x = json
                 .get(id)
                 .ok_or_else(|| Error::new(ErrorKind::NotFound, "no such object"))?;
@@ -80,7 +83,7 @@ impl JsonStore for FileStore {
         } else {
             json
         };
-        decode(o)
+        decode(object)
     }
 
     fn all<T>(&self) -> Result<BTreeMap<String, T>>
@@ -89,12 +92,12 @@ impl JsonStore for FileStore {
     {
         if self.cfg.single {
             let json = get_json_from_file(&self.id_to_path(""))?;
-            let o = get_object_from_json(&json)?;
+            let object = get_object_from_json(&json)?;
             let mut result = BTreeMap::new();
-            for x in o.iter() {
-                let (k, v) = x;
-                if let Ok(r) = decode(v.clone()) {
-                    result.insert(k.clone(), r);
+            for x in object {
+                let (key, value) = x;
+                if let Ok(r) = decode(value.clone()) {
+                    result.insert(key.clone(), r);
                 }
             }
             return Ok(result);
@@ -129,8 +132,8 @@ impl JsonStore for FileStore {
     fn delete(&self, id: &str) -> Result<()> {
         if self.cfg.single {
             let json = get_json_from_file(&self.path)?;
-            let o = get_object_from_json(&json)?;
-            let mut x = o.clone();
+            let object = get_object_from_json(&json)?;
+            let mut x = object.clone();
             if x.contains_key(id) {
                 x.remove(id);
             } else {
@@ -180,7 +183,7 @@ impl FileStore {
     fn save_object_to_file<T: Serialize>(&self, obj: &T, file_name: &Path) -> Result<()> {
         let json_string = self.object_to_string(obj)?;
         let mut tmp_filename = file_name.to_path_buf();
-        tmp_filename.set_file_name(&Uuid::new_v4().to_string());
+        tmp_filename.set_file_name(Uuid::new_v4().to_string());
         tmp_filename.set_extension("tmp");
         let file = OpenOptions::new()
             .write(true)
@@ -198,8 +201,8 @@ impl FileStore {
         if let Err(err) = Write::write_all(&mut tmp_file, json_string.as_bytes()) {
             Err(err)
         } else {
-            tmp_file.unlock()?;
-            file.unlock()?;
+            FileExt::unlock(&tmp_file)?;
+            FileExt::unlock(&file)?;
             drop(file);
             drop(tmp_file);
             rename(tmp_filename, file_name)
@@ -256,9 +259,9 @@ fn get_string_from_file(file_name: &Path) -> Result<String> {
         .create(false)
         .open(file_name)?;
     let mut buffer = String::new();
-    f.lock_shared()?;
+    FileExt::lock_shared(&f)?;
     f.read_to_string(&mut buffer)?;
-    f.unlock()?;
+    FileExt::unlock(&f)?;
     Ok(buffer)
 }
 
@@ -452,7 +455,6 @@ mod tests {
             let dir = tempdir().unwrap().path().to_path_buf();
             let db = FileStore::new(&dir).unwrap();
 
-            #[cfg(feature = "serde_json")]
             #[derive(Deserialize, Serialize)]
             struct X {
                 x: u32,

@@ -1,12 +1,14 @@
-use crate::json_store::JsonStore;
-use parking_lot::{Mutex, RwLock};
-use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     io::{Error, ErrorKind, Result},
     sync::Arc,
 };
+
 use uuid::Uuid;
+use parking_lot::{Mutex, RwLock};
+use serde::{Deserialize, Serialize};
+
+use crate::json_store::JsonStore;
 
 #[derive(Debug, Clone, Default)]
 pub struct MemoryStore {
@@ -187,7 +189,6 @@ mod tests {
     fn all() {
         let db = MemoryStore::default();
 
-        #[cfg(feature = "serde_json")]
         #[derive(Deserialize, Serialize)]
         struct X {
             x: u32,

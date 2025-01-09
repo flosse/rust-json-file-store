@@ -46,8 +46,7 @@
 //! ```rust,no_run
 //! let db = jfs::Store::new(jfs::IN_MEMORY).unwrap();
 //! ```
-use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
+
 use std::{
     collections::BTreeMap,
     io::Result,
@@ -55,15 +54,16 @@ use std::{
     sync::Arc,
 };
 
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
+
 mod file_store;
 mod json_store;
 mod memory_store;
 
-use file_store::FileStore;
-use json_store::JsonStore;
-use memory_store::MemoryStore;
+use self::{file_store::FileStore, json_store::JsonStore, memory_store::MemoryStore};
 
-pub use file_store::Config;
+pub use self::file_store::Config;
 
 #[derive(Debug, Clone)]
 pub struct Store(StoreType);
